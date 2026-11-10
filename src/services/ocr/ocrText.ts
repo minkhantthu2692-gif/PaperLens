@@ -1,48 +1,10 @@
+import { reflowText } from '@/services/text/reflow';
+
 /**
- * Conservatively reconstructs paragraph text from raw OCR output.
- *
- * OCR engines emit one line per visual line. Joining those lines restores readable paragraphs
- * while blank lines and list markers keep intentional structure. No characters are invented or
- * removed beyond whitespace normalization.
+ * Reconstructs OCR output into paragraphs. The implementation lives in the shared text
+ * service so deterministic cleanup tools can reuse the same behavior.
  */
-export function reconstructOcrText(raw: string): string {
-  const lines = raw
-    .replace(/\r\n?/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .split('\n')
-    .map((line) => line.replace(/[ \t]+/g, ' ').trimEnd());
-
-  const paragraphs: string[] = [];
-  let current: string[] = [];
-
-  const flush = () => {
-    const paragraph = current
-      .join(' ')
-      .replace(/[ \t]+/g, ' ')
-      .trim();
-    if (paragraph) {
-      paragraphs.push(paragraph);
-    }
-    current = [];
-  };
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) {
-      flush();
-      continue;
-    }
-    if (/^(?:[-*•·]|\d{1,3}[.)])\s+/.test(line)) {
-      flush();
-      paragraphs.push(line);
-      continue;
-    }
-    current.push(line);
-  }
-  flush();
-
-  return paragraphs.join('\n\n');
-}
+export const reconstructOcrText = reflowText;
 
 export function combineOcrPages(pages: string[]): string {
   return pages

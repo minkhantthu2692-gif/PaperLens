@@ -5,11 +5,12 @@ output into clean, editable documents. Documents are processed and stored on you
 default. AI assistance is optional, bring-your-own-key, and never required for the core
 workflow.
 
-> Status: **Phase 2 — OCR and reconstruction foundation**. The app imports PDF, image, and text
-> files into IndexedDB, runs local OCR with bundled English/Burmese models, supports source
-> viewing, rich-text editing, TXT/HTML/PDF (print) export, and backup/restore. Representative
-> scan-quality testing, extra language packs, AI assistance, DOCX export, and the installable
-> PWA/service worker remain future work.
+> Status: **Phase 3 in progress — OCR, deterministic cleanup, and reconstruction**. The app
+> imports PDF, image, and text files into IndexedDB, runs local OCR with bundled English/Burmese
+> models, offers previewable offline text cleanup, supports source viewing, rich-text editing,
+> TXT/HTML/PDF (print) export, and backup/restore. Representative scan-quality testing, extra
+> language packs, AI assistance, DOCX export, and the installable PWA/service worker remain
+> future work.
 
 ## Product rules
 
@@ -47,6 +48,9 @@ product specification.
 - Local OCR for the current PDF page, all pages, the full image, or a selected region, with
   English, Burmese, or combined recognition, progress, cancellation, preview, and insert.
   Runtime assets and language models are bundled; no upload or account is required.
+- Deterministic offline cleanup with a before/after preview: Unicode and whitespace
+  normalization, conservative line-end hyphenation repair, OCR line reflow, and optional
+  duplicate-line removal. Applied changes are ordinary editor edits, so Undo reverts them.
 - Rich-text editing (headings, lists, quotes, alignment, links, undo/redo) with word/character
   counts and explicit save state.
 - Export to plain text, standalone HTML, or PDF through the browser print dialog.
@@ -55,9 +59,10 @@ product specification.
 
 Current limitations: PDF text selection is approximate. OCR accuracy varies with scan quality
 and has not yet been validated against a representative English/Burmese corpus in this
-environment. DOCX export, direct PDF file generation, AI assistance, extra OCR language packs, and installable
-PWA behavior are not implemented yet. Browser storage can be cleared or evicted, so keep
-backups.
+environment. Cleanup tools are conservative heuristics, not AI, and may still need manual
+review. DOCX export, direct PDF file generation, AI assistance, extra OCR language packs, and
+installable PWA behavior are not implemented yet. Browser storage can be cleared or evicted,
+so keep backups.
 
 ## Getting started
 

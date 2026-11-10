@@ -113,6 +113,34 @@ export const en = {
     splitter: 'Resize source and editor panels',
     showSource: 'Source',
     showEditor: 'Editor',
+    cleanup: 'Clean up text',
+    cleanupApplied: 'Cleanup applied. Use Undo to revert.',
+  },
+  cleanup: {
+    title: 'Clean up text',
+    description:
+      'Predictable, on-device text cleanup. Review the preview before applying; changes can be undone.',
+    scopeSelection: 'Selection · {{count}} characters',
+    scopeDocument: 'Whole document · {{count}} characters',
+    options: 'Cleanup options',
+    normalizeUnicode: 'Normalize Unicode and spaces',
+    normalizeUnicodeHint: 'Applies NFC and replaces non-breaking or wide spaces.',
+    normalizeWhitespace: 'Tidy whitespace',
+    normalizeWhitespaceHint: 'Collapses repeated spaces and excess blank lines.',
+    repairHyphenation: 'Repair line-end hyphenation',
+    repairHyphenationHint:
+      'Joins lowercase words split across lines. Mixed-case and numbered hyphens are kept.',
+    reflowLines: 'Reflow into paragraphs',
+    reflowLinesHint: 'Joins OCR line breaks while keeping blank lines and list items.',
+    removeDuplicateLines: 'Remove repeated lines',
+    removeDuplicateLinesHint: 'Deletes consecutive identical non-empty lines.',
+    before: 'Current text',
+    after: 'Preview',
+    changeSummary: '{{before}} → {{after}} characters',
+    unchanged: 'These options would not change the text.',
+    empty: 'There is no text to clean up. Add or select text in the editor first.',
+    previewTruncated: 'Previews are shortened for performance; the full text is still cleaned.',
+    apply: 'Apply changes',
   },
   ocr: {
     title: 'Extract text with OCR',
@@ -194,7 +222,7 @@ export const en = {
     supportedFormats: 'Supported imports: PDF, PNG, JPEG, WebP, and TXT files up to 25 MB.',
     limitationsTitle: 'Current limitations',
     limitations:
-      'PDF text selection is approximate. OCR runs locally with bundled English and Burmese models; accuracy varies with scan quality. Extra language packs, DOCX file export, AI assistance, and installable PWA behavior arrive in later phases.',
+      'PDF text selection is approximate. OCR runs locally with bundled English and Burmese models; accuracy varies with scan quality. Offline cleanup tools are deterministic heuristics, not AI, so review their preview before applying. Extra language packs, DOCX file export, AI assistance, and installable PWA behavior arrive in later phases.',
     privacy: 'Local-first. Nothing is uploaded unless you explicitly use an external AI provider.',
   },
   notFound: {

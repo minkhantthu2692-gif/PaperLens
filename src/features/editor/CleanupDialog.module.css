@@ -1,0 +1,114 @@
+.body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.scope {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.options {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.option {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.option:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+.option input {
+  margin-top: 0.2rem;
+  accent-color: var(--color-accent);
+}
+
+.optionText {
+  display: grid;
+  gap: 2px;
+}
+
+.optionLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.optionHint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.summary {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.previews {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.preview {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.previewTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.previewText {
+  max-height: 13rem;
+  padding: var(--space-3);
+  overflow: auto;
+  font-family: var(--font-serif);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  white-space: pre-wrap;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.empty {
+  padding: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-subtle);
+  border-radius: var(--radius-sm);
+}

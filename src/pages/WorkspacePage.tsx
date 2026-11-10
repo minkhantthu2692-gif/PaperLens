@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ChevronDown,
   Download,
+  Eraser,
   FileText,
   FileType2,
   Printer,
@@ -24,10 +25,12 @@ import { useTranslation } from 'react-i18next';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/Button';
 import type { DocumentRecord, SourceAsset } from '@/domain/document';
+import { CleanupDialog, type CleanupScope } from '@/features/editor/CleanupDialog';
 import { OcrDialog, type OcrTarget } from '@/features/ocr/OcrDialog';
 import { EditorPanel, type SaveState } from '@/features/workspace/EditorPanel';
 import { SourcePanel } from '@/features/workspace/SourcePanel';
 import { exportHtml, exportPlainText, printDocument } from '@/services/export/exportDocument';
+import { textToHtmlParagraphs } from '@/services/text/cleanup';
 import {
   getDocument,
   getSourceAsset,
@@ -75,6 +78,14 @@ export default function WorkspacePage() {
   const [split, setSplit] = useState(readSplit);
   const [mobilePanel, setMobilePanel] = useState<'source' | 'editor'>('editor');
   const [ocrTarget, setOcrTarget] = useState<OcrTarget | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
+  const [cleanupSource, setCleanupSource] = useState<{
+    text: string;
+    scope: CleanupScope;
+    from: number;
+    to: number;
+  } | null>(null);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
   const editorRef = useRef<Editor | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<HTMLDivElement>(null);
@@ -159,7 +170,42 @@ export default function WorkspacePage() {
 
   const handleEditorReady = useCallback((editor: Editor | null) => {
     editorRef.current = editor;
+    setEditorReady(editor !== null);
   }, []);
+
+  const handleOpenCleanup = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+    const { from, to, empty } = editor.state.selection;
+    const text = empty
+      ? editor.getText({ blockSeparator: '\n\n' })
+      : editor.state.doc.textBetween(from, to, '\n\n');
+    setCleanupSource({ text, scope: empty ? 'document' : 'selection', from, to });
+    setCleanupOpen(true);
+  }, []);
+
+  const handleApplyCleanup = useCallback(
+    (cleaned: string) => {
+      const editor = editorRef.current;
+      if (!editor || !cleanupSource) {
+        return;
+      }
+      const html = textToHtmlParagraphs(cleaned);
+      if (cleanupSource.scope === 'selection') {
+        editor
+          .chain()
+          .focus()
+          .insertContentAt({ from: cleanupSource.from, to: cleanupSource.to }, html)
+          .run();
+      } else {
+        editor.chain().focus().setContent(html, true).run();
+      }
+      setNotice(t('workspace.cleanupApplied'));
+    },
+    [cleanupSource, t],
+  );
 
   const handleSaveStateChange = useCallback((state: SaveState) => {
     setSaveState(state);
@@ -367,49 +413,60 @@ export default function WorkspacePage() {
         }
         subtitle={saveLabel}
         actions={
-          <div className={styles.exportWrap} ref={menuRef}>
+          <div className={styles.topActions}>
             <Button
-              variant="primary"
+              variant="secondary"
               size="sm"
-              aria-haspopup="menu"
-              aria-expanded={exportOpen}
-              onClick={() => setExportOpen((value) => !value)}
+              onClick={handleOpenCleanup}
+              disabled={!editorReady}
             >
-              <Download size={16} aria-hidden="true" />
-              {t('workspace.export')}
-              <ChevronDown size={14} aria-hidden="true" />
+              <Eraser size={16} aria-hidden="true" />
+              {t('workspace.cleanup')}
             </Button>
-            {exportOpen ? (
-              <div className={styles.menu} role="menu">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={styles.menuItem}
-                  onClick={() => handleExport('txt')}
-                >
-                  <FileText size={16} aria-hidden="true" />
-                  {t('workspace.exportTxt')}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={styles.menuItem}
-                  onClick={() => handleExport('html')}
-                >
-                  <FileType2 size={16} aria-hidden="true" />
-                  {t('workspace.exportHtml')}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={styles.menuItem}
-                  onClick={() => handleExport('pdf')}
-                >
-                  <Printer size={16} aria-hidden="true" />
-                  {t('workspace.exportPdf')}
-                </button>
-              </div>
-            ) : null}
+            <div className={styles.exportWrap} ref={menuRef}>
+              <Button
+                variant="primary"
+                size="sm"
+                aria-haspopup="menu"
+                aria-expanded={exportOpen}
+                onClick={() => setExportOpen((value) => !value)}
+              >
+                <Download size={16} aria-hidden="true" />
+                {t('workspace.export')}
+                <ChevronDown size={14} aria-hidden="true" />
+              </Button>
+              {exportOpen ? (
+                <div className={styles.menu} role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.menuItem}
+                    onClick={() => handleExport('txt')}
+                  >
+                    <FileText size={16} aria-hidden="true" />
+                    {t('workspace.exportTxt')}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.menuItem}
+                    onClick={() => handleExport('html')}
+                  >
+                    <FileType2 size={16} aria-hidden="true" />
+                    {t('workspace.exportHtml')}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.menuItem}
+                    onClick={() => handleExport('pdf')}
+                  >
+                    <Printer size={16} aria-hidden="true" />
+                    {t('workspace.exportPdf')}
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         }
       />
@@ -518,6 +575,14 @@ export default function WorkspacePage() {
         pdfPageCount={document.source.pageCount ?? 1}
         onClose={() => setOcrTarget(null)}
         onInsert={handleInsertText}
+      />
+
+      <CleanupDialog
+        open={cleanupOpen}
+        sourceText={cleanupSource?.text ?? ''}
+        scope={cleanupSource?.scope ?? 'document'}
+        onClose={() => setCleanupOpen(false)}
+        onApply={handleApplyCleanup}
       />
     </div>
   );
