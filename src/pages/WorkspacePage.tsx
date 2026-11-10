@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/Button';
 import type { DocumentRecord, SourceAsset } from '@/domain/document';
+import { OcrDialog, type OcrTarget } from '@/features/ocr/OcrDialog';
 import { EditorPanel, type SaveState } from '@/features/workspace/EditorPanel';
 import { SourcePanel } from '@/features/workspace/SourcePanel';
 import { exportHtml, exportPlainText, printDocument } from '@/services/export/exportDocument';
@@ -73,6 +74,7 @@ export default function WorkspacePage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [split, setSplit] = useState(readSplit);
   const [mobilePanel, setMobilePanel] = useState<'source' | 'editor'>('editor');
+  const [ocrTarget, setOcrTarget] = useState<OcrTarget | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<HTMLDivElement>(null);
@@ -174,6 +176,18 @@ export default function WorkspacePage() {
     },
     [documentId],
   );
+
+  const handleOcrPage = useCallback((pageNumber: number) => {
+    setOcrTarget({ kind: 'pdf', pageNumber });
+  }, []);
+
+  const handleOcrImage = useCallback(() => {
+    setOcrTarget({ kind: 'image' });
+  }, []);
+
+  const handleOcrRegion = useCallback((blob: Blob) => {
+    setOcrTarget({ kind: 'region', blob });
+  }, []);
 
   const handleInsertText = useCallback(
     (text: string) => {
@@ -452,6 +466,9 @@ export default function WorkspacePage() {
                 : {})}
               onPageCount={handlePageCount}
               onInsertText={handleInsertText}
+              onOcrPage={handleOcrPage}
+              onOcrImage={handleOcrImage}
+              onOcrRegion={handleOcrRegion}
             />
           ) : (
             <p className={styles.panelFallback}>{t('workspace.sourceError')}</p>
@@ -494,6 +511,14 @@ export default function WorkspacePage() {
           {notice}
         </p>
       ) : null}
+
+      <OcrDialog
+        target={ocrTarget}
+        sourceAsset={asset}
+        pdfPageCount={document.source.pageCount ?? 1}
+        onClose={() => setOcrTarget(null)}
+        onInsert={handleInsertText}
+      />
     </div>
   );
 }

@@ -5,10 +5,11 @@ output into clean, editable documents. Documents are processed and stored on you
 default. AI assistance is optional, bring-your-own-key, and never required for the core
 workflow.
 
-> Status: **Phase 1 — functional local-first foundation**. The app supports importing PDF,
-> image, and text files into IndexedDB, viewing the source, editing in a rich-text editor,
-> exporting TXT/HTML/PDF (print), and backing up/restoring local data. OCR, language packs,
-> AI assistance, DOCX export, and the installable PWA/service worker are later phases.
+> Status: **Phase 2 — OCR and reconstruction foundation**. The app imports PDF, image, and text
+> files into IndexedDB, runs local OCR with bundled English/Burmese models, supports source
+> viewing, rich-text editing, TXT/HTML/PDF (print) export, and backup/restore. Representative
+> scan-quality testing, extra language packs, AI assistance, DOCX export, and the installable
+> PWA/service worker remain future work.
 
 ## Product rules
 
@@ -32,7 +33,7 @@ product specification.
 | Persistence   | IndexedDB via `idb` (schema-versioned)              |
 | Editor        | Tiptap (rich text, local autosave)                  |
 | Source viewer | PDF.js (canvas, text layer, regions)                |
-| OCR           | Tesseract.js, worker-based (planned Phase 2)        |
+| OCR           | Tesseract.js 7, worker-based, bundled EN/MY models  |
 | Tests         | Vitest + Testing Library + jsdom                    |
 
 ## Current capabilities
@@ -42,16 +43,21 @@ product specification.
 - Library with rename/delete, local autosave, and a responsive two-panel workspace with a
   draggable splitter and mobile Source/Editor tabs.
 - PDF viewing with page navigation, zoom, thumbnails, approximate text selection, page-text
-  insertion, and drag-to-select region copy/download. Image zoom and region crop.
+  insertion, and drag-to-select region copy/download/OCR. Image zoom, region crop, and OCR.
+- Local OCR for the current PDF page, all pages, the full image, or a selected region, with
+  English, Burmese, or combined recognition, progress, cancellation, preview, and insert.
+  Runtime assets and language models are bundled; no upload or account is required.
 - Rich-text editing (headings, lists, quotes, alignment, links, undo/redo) with word/character
   counts and explicit save state.
 - Export to plain text, standalone HTML, or PDF through the browser print dialog.
 - Versioned JSON backup and restore, storage-usage display, and delete-all-local-data controls.
 - English and Burmese UI, light/dark/system themes, offline status indicator.
 
-Current limitations: PDF text selection is approximate; OCR, DOCX/PDF file export, AI
-assistance, extra OCR language packs, and installable PWA behavior are not implemented yet.
-Browser storage can be cleared or evicted, so keep backups.
+Current limitations: PDF text selection is approximate. OCR accuracy varies with scan quality
+and has not yet been validated against a representative English/Burmese corpus in this
+environment. DOCX export, direct PDF file generation, AI assistance, extra OCR language packs, and installable
+PWA behavior are not implemented yet. Browser storage can be cleared or evicted, so keep
+backups.
 
 ## Getting started
 
@@ -106,6 +112,11 @@ mount --bind /tmp/paperlens-node_modules node_modules
 npm install --ignore-scripts
 ```
 
+OCR runtime files are copied from `node_modules` into `public/ocr/` by
+`scripts/sync-ocr-assets.mjs`, which runs automatically before `dev`, `build`, and `preview`.
+Bundled language models live in `public/ocr/lang/` with source and checksums documented in
+its README. Generated runtime files are not committed.
+
 The bind mount must be recreated after a reboot; the dependency tree is disposable and is
 never committed. Package scripts call Node entry points directly (`node ./node_modules/...`)
 so they do not depend on executable `.bin` shims. `--ignore-scripts` is used here because the
@@ -127,6 +138,7 @@ and PWA install support are added in a later phase.
   files, keys, archives, and local document stores.
 - Browser storage can be cleared by the browser or user; users should keep backups. Backup
   files contain document text and source files, so store them somewhere safe.
+- OCR runs in a browser worker with bundled language models; source pages are not uploaded.
 - No telemetry or analytics are included.
 
 ## License

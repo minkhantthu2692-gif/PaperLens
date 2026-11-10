@@ -93,3 +93,8 @@ Thumbs.db
 
 # Local package manager caches
 .npm-cache/
+
+# Generated OCR runtime assets (copied from node_modules)
+public/ocr/*.js
+public/ocr/*.wasm
+public/ocr/LICENSE.*

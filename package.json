@@ -9,8 +9,11 @@
   },
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js",
+    "predev": "node scripts/sync-ocr-assets.mjs",
     "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build",
+    "prebuild": "node scripts/sync-ocr-assets.mjs",
     "preview": "node ./node_modules/vite/bin/vite.js preview",
+    "prepreview": "node scripts/sync-ocr-assets.mjs",
     "typecheck": "node ./node_modules/typescript/bin/tsc -b",
     "lint": "node ./node_modules/eslint/bin/eslint.js . --max-warnings=0",
     "lint:fix": "node ./node_modules/eslint/bin/eslint.js . --fix",
@@ -18,7 +21,8 @@
     "format:check": "node ./node_modules/prettier/bin/prettier.cjs --check .",
     "test": "node ./node_modules/vitest/vitest.mjs run",
     "test:watch": "node ./node_modules/vitest/vitest.mjs",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "ocr:assets": "node scripts/sync-ocr-assets.mjs"
   },
   "dependencies": {
     "@tiptap/extension-link": "^2.27.3",
@@ -37,7 +41,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^15.0.0",
-    "react-router-dom": "^6.30.6"
+    "react-router-dom": "^6.30.6",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

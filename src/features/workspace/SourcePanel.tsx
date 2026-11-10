@@ -12,6 +12,7 @@ import {
   Maximize,
   MousePointer2,
   ScanLine,
+  ScanText,
   X,
   ZoomIn,
   ZoomOut,
@@ -33,6 +34,9 @@ interface SourcePanelProps {
   pageCount?: number | undefined;
   onPageCount: (count: number) => void;
   onInsertText: (text: string) => void;
+  onOcrPage: (pageNumber: number) => void;
+  onOcrImage: () => void;
+  onOcrRegion: (blob: Blob) => void;
 }
 
 type PdfModule = typeof PdfJs;
@@ -116,6 +120,17 @@ async function copyRegion(
   return false;
 }
 
+async function regionToBlob(
+  element: HTMLCanvasElement | HTMLImageElement,
+  rect: SelectionRect,
+): Promise<Blob | null> {
+  const canvas = cropToCanvas(element, rect);
+  if (!canvas) {
+    return null;
+  }
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+}
+
 function downloadRegion(
   element: HTMLCanvasElement | HTMLImageElement,
   rect: SelectionRect,
@@ -174,7 +189,15 @@ function RegionRect({ rect }: { rect: SelectionRect }) {
   );
 }
 
-export function SourcePanel({ asset, pageCount, onPageCount, onInsertText }: SourcePanelProps) {
+export function SourcePanel({
+  asset,
+  pageCount,
+  onPageCount,
+  onInsertText,
+  onOcrPage,
+  onOcrImage,
+  onOcrRegion,
+}: SourcePanelProps) {
   const { t } = useTranslation();
   const kindLabel =
     asset.mimeType === 'application/pdf'
@@ -208,9 +231,11 @@ export function SourcePanel({ asset, pageCount, onPageCount, onInsertText }: Sou
           {...(pageCount !== undefined ? { initialPageCount: pageCount } : {})}
           onPageCount={onPageCount}
           onInsertText={onInsertText}
+          onOcrPage={onOcrPage}
+          onOcrRegion={onOcrRegion}
         />
       ) : asset.mimeType.startsWith('image/') ? (
-        <ImageSource asset={asset} />
+        <ImageSource asset={asset} onOcrImage={onOcrImage} onOcrRegion={onOcrRegion} />
       ) : (
         <TextSource asset={asset} onInsertText={onInsertText} />
       )}
@@ -223,11 +248,15 @@ function PdfSource({
   initialPageCount,
   onPageCount,
   onInsertText,
+  onOcrPage,
+  onOcrRegion,
 }: {
   asset: SourceAsset;
   initialPageCount?: number;
   onPageCount: (count: number) => void;
   onInsertText: (text: string) => void;
+  onOcrPage: (pageNumber: number) => void;
+  onOcrRegion: (blob: Blob) => void;
 }) {
   const { t } = useTranslation();
   const [pdfjs, setPdfjs] = useState<PdfModule | null>(null);
@@ -377,6 +406,17 @@ function PdfSource({
     setStatus(copied ? t('workspace.copied') : t('workspace.copyFailed'));
   };
 
+  const handleOcrRegion = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !selection.rect) {
+      return;
+    }
+    const blob = await regionToBlob(canvas, selection.rect);
+    if (blob) {
+      onOcrRegion(blob);
+    }
+  };
+
   const handleDownload = () => {
     const canvas = canvasRef.current;
     if (!canvas || !selection.rect) {
@@ -505,6 +545,10 @@ function PdfSource({
             <FileText size={15} aria-hidden="true" />
             {t('workspace.insertPageText')}
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => onOcrPage(pageNumber)}>
+            <ScanText size={15} aria-hidden="true" />
+            {t('workspace.ocrPage')}
+          </Button>
         </div>
       </div>
 
@@ -530,6 +574,10 @@ function PdfSource({
           <span>{t('workspace.regionHint')}</span>
           {selection.rect ? (
             <>
+              <Button variant="secondary" size="sm" onClick={() => void handleOcrRegion()}>
+                <ScanText size={15} aria-hidden="true" />
+                {t('workspace.ocrRegion')}
+              </Button>
               <Button variant="secondary" size="sm" onClick={() => void handleCopy()}>
                 <Clipboard size={15} aria-hidden="true" />
                 {t('workspace.copyRegion')}
@@ -668,7 +716,15 @@ function PdfThumbnail({
   );
 }
 
-function ImageSource({ asset }: { asset: SourceAsset }) {
+function ImageSource({
+  asset,
+  onOcrImage,
+  onOcrRegion,
+}: {
+  asset: SourceAsset;
+  onOcrImage: () => void;
+  onOcrRegion: (blob: Blob) => void;
+}) {
   const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -690,6 +746,17 @@ function ImageSource({ asset }: { asset: SourceAsset }) {
     const timer = window.setTimeout(() => setStatus(null), 3000);
     return () => window.clearTimeout(timer);
   }, [status]);
+
+  const handleOcrRegion = async () => {
+    const image = imageRef.current;
+    if (!image || !selection.rect) {
+      return;
+    }
+    const blob = await regionToBlob(image, selection.rect);
+    if (blob) {
+      onOcrRegion(blob);
+    }
+  };
 
   const handleCopy = async () => {
     const image = imageRef.current;
@@ -737,6 +804,10 @@ function ImageSource({ asset }: { asset: SourceAsset }) {
           </Button>
         </div>
         <div className={styles.toolGroup}>
+          <Button variant="ghost" size="sm" onClick={onOcrImage}>
+            <ScanText size={15} aria-hidden="true" />
+            {t('workspace.ocrImage')}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -757,6 +828,10 @@ function ImageSource({ asset }: { asset: SourceAsset }) {
           <span>{t('workspace.regionHint')}</span>
           {selection.rect ? (
             <>
+              <Button variant="secondary" size="sm" onClick={() => void handleOcrRegion()}>
+                <ScanText size={15} aria-hidden="true" />
+                {t('workspace.ocrRegion')}
+              </Button>
               <Button variant="secondary" size="sm" onClick={() => void handleCopy()}>
                 <Clipboard size={15} aria-hidden="true" />
                 {t('workspace.copyRegion')}
