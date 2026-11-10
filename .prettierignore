@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+dev-dist
+package-lock.json
+public/*
+!public/favicon.svg
+
+AGENTS.md
+Prompt.md
+reference-mockup.png
