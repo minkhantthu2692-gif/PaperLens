@@ -1,0 +1,135 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: none;
+  width: var(--layout-sidebar-compact);
+  height: 100dvh;
+  padding: var(--space-3) var(--space-2);
+  background-color: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border-subtle);
+  transition: width var(--duration-normal) var(--easing-standard);
+  z-index: var(--z-sticky);
+}
+
+.expanded {
+  width: var(--layout-sidebar-expanded);
+  align-items: stretch;
+}
+
+.collapsed {
+  align-items: center;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  min-height: var(--layout-header-height);
+  padding: 0 var(--space-1);
+  overflow: hidden;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.625rem;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition:
+    color var(--duration-fast) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard);
+}
+
+.collapsed .link {
+  justify-content: center;
+  padding: 0;
+}
+
+.link:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-subtle);
+}
+
+.linkActive {
+  color: var(--color-text-accent);
+  background-color: var(--color-bg-accent-soft);
+}
+
+.linkActive:hover {
+  color: var(--color-text-accent);
+  background-color: var(--color-bg-accent-soft);
+}
+
+.label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.collapsed .label {
+  display: none;
+}
+
+.toggle {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 2.625rem;
+  padding: 0 var(--space-3);
+  margin-top: auto;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.collapsed .toggle {
+  justify-content: center;
+  padding: 0;
+}
+
+.toggle:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-subtle);
+}
+
+.scrim {
+  display: none;
+  padding: 0;
+  background: var(--color-bg-scrim);
+  border: 0;
+}
+
+@media (max-width: 48rem) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100dvh;
+  }
+
+  .expanded {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-sticky) - 1);
+    display: block;
+  }
+}

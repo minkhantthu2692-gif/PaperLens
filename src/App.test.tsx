@@ -5,7 +5,8 @@ import { ThemeProvider } from '@/app/theme/ThemeProvider';
 import i18n from '@/i18n';
 import App from '@/App';
 
-function renderApp() {
+function renderApp(path = '/') {
+  window.history.pushState({}, '', path);
   return render(
     <ThemeProvider>
       <App />
@@ -19,33 +20,36 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
 });
 
-describe('App foundation screen', () => {
-  it('renders the foundation status and app version', () => {
-    renderApp();
+describe('App routing', () => {
+  it('renders the document library at the root route', async () => {
+    renderApp('/');
 
-    expect(screen.getByRole('heading', { name: /foundation ready/i })).toBeInTheDocument();
-    expect(screen.getByText(/version test/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /your documents stay yours/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  });
+
+  it('opens settings and applies a dark theme', async () => {
+    const user = userEvent.setup();
+    renderApp('/settings');
+
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Theme'), 'dark');
+
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
   });
 
   it('switches the interface language to Burmese', async () => {
     const user = userEvent.setup();
-    renderApp();
+    renderApp('/settings');
 
-    await user.selectOptions(screen.getByLabelText(/language/i), 'my');
+    await user.selectOptions(await screen.findByLabelText('Language'), 'my');
 
-    expect(
-      await screen.findByRole('heading', { name: 'အခြေခံအုတ်မြစ် အသင့်ဖြစ်ပါပြီ' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'ဆက်တင်များ' })).toBeInTheDocument();
     await waitFor(() => expect(document.documentElement.lang).toBe('my'));
   });
 
-  it('applies a dark theme when selected', async () => {
-    const user = userEvent.setup();
-    renderApp();
+  it('shows a not-found page for unknown routes', async () => {
+    renderApp('/missing-page');
 
-    await user.selectOptions(screen.getByLabelText(/theme/i), 'dark');
-
-    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 });

@@ -5,10 +5,10 @@ output into clean, editable documents. Documents are processed and stored on you
 default. AI assistance is optional, bring-your-own-key, and never required for the core
 workflow.
 
-> Status: **Phase 0 — foundation**. The repository currently contains project tooling, the
-> design-token layer, theming, and internationalization scaffolding. Document import, OCR,
-> editing, and export are implemented in later phases. Nothing is represented as complete
-> until it is implemented and verified.
+> Status: **Phase 1 — functional local-first foundation**. The app supports importing PDF,
+> image, and text files into IndexedDB, viewing the source, editing in a rich-text editor,
+> exporting TXT/HTML/PDF (print), and backing up/restoring local data. OCR, language packs,
+> AI assistance, DOCX export, and the installable PWA/service worker are later phases.
 
 ## Product rules
 
@@ -23,17 +23,35 @@ product specification.
 
 ## Tech stack
 
-| Concern       | Choice                                                  |
-| ------------- | ------------------------------------------------------- |
-| UI            | React 18 + TypeScript (strict)                          |
-| Build         | Vite 5 (Node 18.18+ compatible)                         |
-| Styling       | CSS Modules + CSS custom properties (design tokens)     |
-| i18n          | i18next + react-i18next (English, Burmese)              |
-| Persistence   | IndexedDB via `idb` (schema-versioned, planned Phase 1) |
-| Editor        | Tiptap (planned Phase 1)                                |
-| Source viewer | PDF.js (planned Phase 1)                                |
-| OCR           | Tesseract.js, worker-based (planned Phase 2)            |
-| Tests         | Vitest + Testing Library + jsdom                        |
+| Concern       | Choice                                              |
+| ------------- | --------------------------------------------------- |
+| UI            | React 18 + TypeScript (strict)                      |
+| Build         | Vite 5 (Node 18.18+ compatible)                     |
+| Styling       | CSS Modules + CSS custom properties (design tokens) |
+| i18n          | i18next + react-i18next (English, Burmese)          |
+| Persistence   | IndexedDB via `idb` (schema-versioned)              |
+| Editor        | Tiptap (rich text, local autosave)                  |
+| Source viewer | PDF.js (canvas, text layer, regions)                |
+| OCR           | Tesseract.js, worker-based (planned Phase 2)        |
+| Tests         | Vitest + Testing Library + jsdom                    |
+
+## Current capabilities
+
+- Import PDF, PNG, JPEG, WebP, and UTF-8 TXT files up to 25 MB; files are validated and kept
+  as immutable local source assets.
+- Library with rename/delete, local autosave, and a responsive two-panel workspace with a
+  draggable splitter and mobile Source/Editor tabs.
+- PDF viewing with page navigation, zoom, thumbnails, approximate text selection, page-text
+  insertion, and drag-to-select region copy/download. Image zoom and region crop.
+- Rich-text editing (headings, lists, quotes, alignment, links, undo/redo) with word/character
+  counts and explicit save state.
+- Export to plain text, standalone HTML, or PDF through the browser print dialog.
+- Versioned JSON backup and restore, storage-usage display, and delete-all-local-data controls.
+- English and Burmese UI, light/dark/system themes, offline status indicator.
+
+Current limitations: PDF text selection is approximate; OCR, DOCX/PDF file export, AI
+assistance, extra OCR language packs, and installable PWA behavior are not implemented yet.
+Browser storage can be cleared or evicted, so keep backups.
 
 ## Getting started
 
@@ -97,16 +115,18 @@ installing. On a normal desktop filesystem, plain `npm install` and the same scr
 ## Deployment
 
 The app is a static SPA with no required server functions. The build output is `dist/`.
-`VITE_BASE_PATH` controls the public base path (default `/`), which is required for
-sub-path deployments such as GitHub Pages (`/PaperLens/`). Host-specific instructions are
-documented as the phases that add routing and the service worker land.
+`VITE_BASE_PATH` controls the public base path (default `/`), required for sub-path
+deployments such as GitHub Pages (`/PaperLens/`). Because routing is client-side, configure an
+SPA fallback to `index.html`: on Vercel add a rewrite, on Cloudflare Pages enable single-page
+app handling, and on GitHub Pages publish a `404.html` copy of `index.html`. Service-worker
+and PWA install support are added in a later phase.
 
 ## Privacy and security
 
 - Never commit API keys, credentials, or user documents. `.gitignore` covers environment
   files, keys, archives, and local document stores.
-- Browser storage can be cleared by the browser or user; users are expected to keep backups
-  once backup/restore ships.
+- Browser storage can be cleared by the browser or user; users should keep backups. Backup
+  files contain document text and source files, so store them somewhere safe.
 - No telemetry or analytics are included.
 
 ## License

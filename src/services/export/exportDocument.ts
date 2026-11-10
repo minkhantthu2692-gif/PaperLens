@@ -1,0 +1,61 @@
+import DOMPurify from 'dompurify';
+import { downloadBlob, sanitizeFileName } from '@/lib/file';
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function exportPlainText(title: string, text: string): void {
+  downloadBlob(
+    new Blob([text], { type: 'text/plain;charset=utf-8' }),
+    `${sanitizeFileName(title)}.txt`,
+  );
+}
+
+function buildHtmlDocument(title: string, sanitizedBody: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(title)}</title>
+<style>
+  body { max-width: 46rem; margin: 2rem auto; padding: 0 1.25rem; font-family: Georgia, 'Noto Serif', 'Noto Serif Myanmar', serif; line-height: 1.65; color: #111827; }
+  h1, h2, h3 { line-height: 1.25; }
+  blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid #c7d2fe; color: #374151; }
+  p { margin: 0 0 1rem; }
+  li { margin-bottom: 0.35rem; }
+</style>
+</head>
+<body>
+${sanitizedBody}
+</body>
+</html>`;
+}
+
+export function exportHtml(title: string, html: string): void {
+  const sanitized = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  downloadBlob(
+    new Blob([buildHtmlDocument(title, sanitized)], { type: 'text/html;charset=utf-8' }),
+    `${sanitizeFileName(title)}.html`,
+  );
+}
+
+export function printDocument(title: string, html: string): void {
+  const sanitized = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    throw new Error('Print window blocked');
+  }
+  printWindow.opener = null;
+  printWindow.document.open();
+  printWindow.document.write(buildHtmlDocument(title, sanitized));
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}

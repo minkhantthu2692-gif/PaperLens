@@ -1,0 +1,30 @@
+.wrapper {
+  display: grid;
+  gap: var(--space-4);
+  place-content: center;
+  justify-items: center;
+  min-height: 100dvh;
+  padding: var(--space-8);
+  text-align: center;
+  background-color: var(--color-bg-app);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-warning);
+  background-color: var(--color-warning-soft);
+  border-radius: var(--radius-full);
+}
+
+.title {
+  font-size: var(--font-size-2xl);
+}
+
+.description {
+  max-width: 34rem;
+  color: var(--color-text-secondary);
+}
