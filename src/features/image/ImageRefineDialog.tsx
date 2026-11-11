@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { AlertCircle, Eye, Redo2, RotateCcw, RotateCw, Sparkles, Undo2, Wand2 } from 'lucide-react';
+import {
+  AlertCircle,
+  Eye,
+  Hand,
+  Redo2,
+  RotateCcw,
+  RotateCw,
+  Sparkles,
+  Undo2,
+  Wand2,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import clsx from 'clsx';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
 import type { SourceAsset } from '@/domain/document';
+import { usePanScroll } from '@/hooks/usePanScroll';
 import {
   DEFAULT_REFINEMENT_PARAMS,
   createDefaultPerspectiveQuad,
@@ -39,6 +52,9 @@ const FULL_MAX_DIMENSION = 4096;
 const FULL_MAX_PIXELS = 24_000_000;
 const PREVIEW_DEBOUNCE_MS = 220;
 const PREVIEW_MAX_HEIGHT = 'clamp(16rem, 58vh, 34rem)';
+const MIN_ZOOM = 100;
+const MAX_ZOOM = 400;
+const ZOOM_STEP = 25;
 
 const PRESET_LABEL_KEYS = {
   document: 'refine.presetDocument',
@@ -383,6 +399,9 @@ export function ImageRefineDialog({
   const [aiStatus, setAiStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [aiError, setAiError] = useState<AiErrorCode | 'not-configured' | null>(null);
   const [view, setView] = useState<'after' | 'split' | 'before'>('split');
+  const [zoom, setZoom] = useState(MIN_ZOOM);
+  const [panEnabled, setPanEnabled] = useState(false);
+  const pan = usePanScroll(panEnabled, { label: t('common.handTool') });
   const [splitPosition, setSplitPosition] = useState(50);
   const previewControllerRef = useRef<AbortController | null>(null);
   const aiControllerRef = useRef<AbortController | null>(null);
@@ -425,6 +444,8 @@ export function ImageRefineDialog({
     setAiStatus('idle');
     setAiError(null);
     setView('split');
+    setZoom(MIN_ZOOM);
+    setPanEnabled(false);
     setSplitPosition(50);
     setPreviewBlob(null);
   }, [open, asset, savedParams, savedPreset]);
@@ -695,11 +716,11 @@ export function ImageRefineDialog({
 
   // Keep the preview inside a laptop-height dialog: the stage shrinks with the
   // page aspect ratio instead of pushing the controls far below the viewport.
-  const aspectStyle: CSSProperties | undefined = originalPreview
+  // Zooming multiplies that fitted size and scrolls inside the preview viewport.
+  const stageStyle: CSSProperties | undefined = originalPreview
     ? {
         aspectRatio: `${originalPreview.width} / ${originalPreview.height}`,
-        width: `min(100%, calc(${PREVIEW_MAX_HEIGHT} * ${originalPreview.width / originalPreview.height}))`,
-        maxHeight: PREVIEW_MAX_HEIGHT,
+        width: `calc(min(100%, calc(${PREVIEW_MAX_HEIGHT} * ${originalPreview.width / originalPreview.height})) * ${zoom / 100})`,
       }
     : undefined;
 
@@ -868,51 +889,115 @@ export function ImageRefineDialog({
 
         <div className={styles.grid}>
           <div className={styles.previewColumn}>
-            <div className={styles.viewSwitch} role="group" aria-label={t('refine.compare')}>
-              {(['before', 'split', 'after'] as const).map((option) => (
+            <div className={styles.previewToolbar}>
+              <div className={styles.viewSwitch} role="group" aria-label={t('refine.compare')}>
+                {(['before', 'split', 'after'] as const).map((option) => (
+                  <Button
+                    key={option}
+                    variant={view === option ? 'secondary' : 'ghost'}
+                    size="sm"
+                    aria-pressed={view === option}
+                    onClick={() => setView(option)}
+                  >
+                    {option === 'before'
+                      ? t('refine.before')
+                      : option === 'after'
+                        ? t('refine.after')
+                        : t('refine.split')}
+                  </Button>
+                ))}
+              </div>
+              <div className={styles.zoomControls} role="group" aria-label={t('refine.zoom')}>
                 <Button
-                  key={option}
-                  variant={view === option ? 'secondary' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  aria-pressed={view === option}
-                  onClick={() => setView(option)}
+                  iconOnly
+                  disabled={zoom <= MIN_ZOOM}
+                  aria-label={t('refine.zoomOut')}
+                  title={t('refine.zoomOut')}
+                  onClick={() =>
+                    setZoom((current) => clamp(current - ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))
+                  }
                 >
-                  {option === 'before'
-                    ? t('refine.before')
-                    : option === 'after'
-                      ? t('refine.after')
-                      : t('refine.split')}
+                  <ZoomOut size={16} aria-hidden="true" />
                 </Button>
-              ))}
+                <span className={styles.zoomValue} role="status" aria-live="polite">
+                  {zoom}%
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  disabled={zoom >= MAX_ZOOM}
+                  aria-label={t('refine.zoomIn')}
+                  title={t('refine.zoomIn')}
+                  onClick={() =>
+                    setZoom((current) => clamp(current + ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))
+                  }
+                >
+                  <ZoomIn size={16} aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={zoom === MIN_ZOOM}
+                  onClick={() => setZoom(MIN_ZOOM)}
+                >
+                  {t('refine.zoomFit')}
+                </Button>
+                <Button
+                  variant={panEnabled ? 'secondary' : 'ghost'}
+                  size="sm"
+                  iconOnly
+                  onClick={() => setPanEnabled((value) => !value)}
+                  aria-label={t('common.handTool')}
+                  title={t('common.handToolHint')}
+                  aria-pressed={panEnabled}
+                >
+                  <Hand size={16} aria-hidden="true" />
+                </Button>
+              </div>
             </div>
 
-            <div className={styles.compareStage} style={aspectStyle}>
-              {originalPreview ? (
-                <img
-                  className={styles.compareImage}
-                  src={originalPreview.url}
-                  alt={t('refine.before')}
-                />
-              ) : null}
-              {previewUrl && view !== 'before' ? (
-                <img
-                  className={clsx(
-                    styles.compareImage,
-                    styles.compareImageOverlay,
-                    view === 'after' && styles.compareImageFull,
-                  )}
-                  style={
-                    view === 'split' ? { clipPath: `inset(0 0 0 ${splitPosition}%)` } : undefined
-                  }
-                  src={previewUrl}
-                  alt={t('refine.after')}
-                />
-              ) : null}
-              {status === 'processing' ? (
-                <span className={styles.processingBadge} role="status">
-                  {t('refine.processing')}
-                </span>
-              ) : null}
+            <div
+              ref={pan.containerRef}
+              className={clsx(
+                styles.compareViewport,
+                panEnabled && styles.panSurface,
+                panEnabled && pan.panning && styles.panSurfaceActive,
+              )}
+              {...pan.surfaceProps}
+            >
+              <div className={styles.compareStage} style={stageStyle}>
+                {originalPreview ? (
+                  <img
+                    className={styles.compareImage}
+                    src={originalPreview.url}
+                    alt={t('refine.before')}
+                    draggable={false}
+                  />
+                ) : null}
+                {previewUrl && view !== 'before' ? (
+                  <img
+                    className={clsx(
+                      styles.compareImage,
+                      styles.compareImageOverlay,
+                      view === 'after' && styles.compareImageFull,
+                    )}
+                    style={
+                      view === 'split' ? { clipPath: `inset(0 0 0 ${splitPosition}%)` } : undefined
+                    }
+                    src={previewUrl}
+                    alt={t('refine.after')}
+                    draggable={false}
+                  />
+                ) : null}
+                {status === 'processing' ? (
+                  <span className={styles.processingBadge} role="status">
+                    {t('refine.processing')}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             {view === 'split' ? (
@@ -930,6 +1015,7 @@ export function ImageRefineDialog({
               </div>
             ) : null}
 
+            {zoom > MIN_ZOOM ? <p className={styles.hint}>{t('refine.zoomHint')}</p> : null}
             <p className={styles.hint}>{t('refine.previewNote')}</p>
             <p className={styles.hint}>{t('refine.originalPreserved')}</p>
           </div>

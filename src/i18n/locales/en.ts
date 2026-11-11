@@ -18,6 +18,8 @@ export const en = {
     import: 'Import',
     loading: 'Loading…',
     dismiss: 'Dismiss',
+    handTool: 'Hand tool',
+    handToolHint: 'Drag the image to pan. Arrow keys pan too while this tool is active.',
   },
   nav: {
     documents: 'Documents',
@@ -302,6 +304,11 @@ export const en = {
     autoApplied: 'Suggested settings applied. Review the preview before applying.',
     analyze: 'Analyze',
     analyzing: 'Measuring image quality…',
+    zoom: 'Preview zoom',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    zoomFit: 'Fit',
+    zoomHint: 'Scroll inside the preview to reach the rest of the page.',
     analyzeHint:
       'Measurements are computed on this device. They are estimates and do not guarantee OCR accuracy.',
     analysisTitle: 'Image quality',

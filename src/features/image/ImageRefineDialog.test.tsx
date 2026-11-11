@@ -209,6 +209,60 @@ describe('ImageRefineDialog', () => {
     expect(lastParams().deskew).toBe(true);
   });
 
+  it('zooms the preview for detail inspection and resets to fit', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const zoomIn = screen.getByRole('button', { name: 'Zoom in' });
+    const zoomOut = screen.getByRole('button', { name: 'Zoom out' });
+    const fit = screen.getByRole('button', { name: 'Fit' });
+    expect(zoomOut).toBeDisabled();
+    expect(fit).toBeDisabled();
+
+    expect(screen.queryByText(/Scroll inside the preview/)).not.toBeInTheDocument();
+
+    await user.click(zoomIn);
+    expect(screen.getByText('125%')).toBeInTheDocument();
+    expect(screen.getByText(/Scroll inside the preview/)).toBeInTheDocument();
+    expect(zoomOut).toBeEnabled();
+
+    await user.click(zoomIn);
+    expect(screen.getByText('150%')).toBeInTheDocument();
+
+    await user.click(fit);
+    expect(screen.getByText('100%')).toBeInTheDocument();
+    expect(screen.queryByText(/Scroll inside the preview/)).not.toBeInTheDocument();
+    expect(fit).toBeDisabled();
+  });
+
+  it('pans the preview with the hand tool and leaves native scrolling otherwise', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const viewport = document.querySelector('[class*="compareViewport"]') as HTMLElement;
+    const handTool = screen.getByRole('button', { name: 'Hand tool' });
+    expect(handTool).toHaveAttribute('aria-pressed', 'false');
+    expect(viewport).not.toHaveAttribute('tabindex');
+
+    await user.click(handTool);
+    expect(handTool).toHaveAttribute('aria-pressed', 'true');
+    expect(viewport).toHaveAttribute('tabindex', '0');
+    expect(viewport).toHaveAttribute('aria-label', 'Hand tool');
+
+    Object.defineProperty(viewport, 'scrollLeft', { value: 100, writable: true });
+    Object.defineProperty(viewport, 'scrollTop', { value: 80, writable: true });
+    fireEvent.pointerDown(viewport, { button: 0, pointerId: 1, clientX: 300, clientY: 300 });
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 260, clientY: 260 });
+    expect(viewport.scrollLeft).toBe(140);
+    expect(viewport.scrollTop).toBe(120);
+    fireEvent.pointerUp(viewport, { pointerId: 1 });
+
+    // Switching back restores the untouched viewer interactions.
+    await user.click(handTool);
+    expect(handTool).toHaveAttribute('aria-pressed', 'false');
+    expect(viewport).not.toHaveAttribute('tabindex');
+  });
+
   it('shows the local quality report after Analyze without changing settings', async () => {
     const user = userEvent.setup();
     renderDialog();

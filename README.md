@@ -50,7 +50,8 @@ product specification.
   draggable splitter and mobile Source/Editor tabs. Pending edits are saved on tab close and
   trigger a browser warning if saving is still in progress or failed.
 - PDF viewing with page navigation, zoom, thumbnails, approximate text selection, page-text
-  insertion, and drag-to-select region copy/download/OCR. Image zoom, region crop, and OCR.
+  insertion, and drag-to-select region copy/download/OCR. Image zoom with a hand tool for
+  drag-to-pan, region crop, and OCR.
 - Local OCR for the current PDF page, all pages, the full image, or a selected region, with
   English, Burmese, or any combination of installed languages, progress, cancellation, preview,
   and insert. Runtime assets and language models are bundled; no upload or account is required.
@@ -61,7 +62,8 @@ product specification.
   entirely on-device in a Web Worker: auto enhance, deskew/fine rotation, perspective corner
   correction, denoise, brightness/contrast, grayscale, adaptive threshold, sharpen, shadow
   removal, and conservative page dewarping, with presets for documents, handwriting, old
-  scans, camera photos, and low-contrast pages. Before/after comparison, undo/redo, reset,
+  scans, camera photos, and low-contrast pages. Before/after comparison with preview zoom and
+  a drag-to-pan hand tool, undo/redo, reset,
   revert, and full-resolution apply are included. A refined copy is stored as a separate
   asset; the original is never modified, applying does not trigger OCR, and OCR can use either
   the original or the refined image. Optional AI image analysis/enhancement reuses the

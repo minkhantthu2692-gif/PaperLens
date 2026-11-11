@@ -192,6 +192,23 @@
   max-width: none;
 }
 
+.panSurface {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.panSurface:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.panSurfaceActive,
+.panSurfaceActive * {
+  cursor: grabbing !important;
+}
+
 .textLayer {
   position: absolute;
   inset: 0;

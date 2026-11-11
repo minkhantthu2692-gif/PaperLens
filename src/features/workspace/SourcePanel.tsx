@@ -7,6 +7,7 @@ import {
   Download,
   FileText,
   FileType2,
+  Hand,
   ImageDown,
   Image as ImageIcon,
   Maximize,
@@ -25,6 +26,7 @@ import type * as PdfJs from 'pdfjs-dist';
 import type { PDFDocumentProxy, PageViewport } from 'pdfjs-dist';
 import { Button } from '@/components/ui/Button';
 import type { SourceAsset } from '@/domain/document';
+import { usePanScroll } from '@/hooks/usePanScroll';
 import { downloadBlob, sanitizeFileName } from '@/lib/file';
 import { formatBytes } from '@/lib/format';
 import { MAX_TEXT_CHARACTERS } from '@/services/import/fileValidation';
@@ -762,9 +764,20 @@ function ImageSource({
   const [url, setUrl] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [mode, setMode] = useState<'view' | 'region'>('view');
+  const [panEnabled, setPanEnabled] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const selection = useRegionSelection(mode === 'region');
+  const selection = useRegionSelection(mode === 'region' && !panEnabled);
+  const pan = usePanScroll(panEnabled, { label: t('common.handTool') });
+
+  const togglePan = () => {
+    const next = !panEnabled;
+    setPanEnabled(next);
+    if (next) {
+      // Panning and region selection both use drag gestures.
+      setMode('view');
+    }
+  };
 
   useEffect(() => {
     const objectUrl = URL.createObjectURL(asset.blob);
@@ -835,6 +848,18 @@ function ImageSource({
           >
             <Maximize size={16} aria-hidden="true" />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            className={panEnabled ? styles.active : undefined}
+            onClick={togglePan}
+            aria-label={t('common.handTool')}
+            title={t('common.handToolHint')}
+            aria-pressed={panEnabled}
+          >
+            <Hand size={17} aria-hidden="true" />
+          </Button>
         </div>
         <div className={styles.toolGroup}>
           {onRefineImage ? (
@@ -857,7 +882,14 @@ function ImageSource({
             size="sm"
             iconOnly
             className={mode === 'region' ? styles.active : undefined}
-            onClick={() => setMode(mode === 'region' ? 'view' : 'region')}
+            onClick={() => {
+              if (mode === 'region') {
+                setMode('view');
+              } else {
+                setMode('region');
+                setPanEnabled(false);
+              }
+            }}
             aria-label={t('workspace.selectRegion')}
             title={t('workspace.selectRegion')}
             aria-pressed={mode === 'region'}
@@ -919,10 +951,24 @@ function ImageSource({
         </p>
       ) : null}
 
-      <div className={styles.scroll}>
+      <div
+        ref={pan.containerRef}
+        className={clsx(
+          styles.scroll,
+          panEnabled && styles.panSurface,
+          panEnabled && pan.panning && styles.panSurfaceActive,
+        )}
+        {...pan.surfaceProps}
+      >
         {url ? (
           <div className={styles.imageStage} style={{ width: `${zoom * 100}%` }}>
-            <img ref={imageRef} src={url} alt={asset.fileName} className={styles.image} />
+            <img
+              ref={imageRef}
+              src={url}
+              alt={asset.fileName}
+              className={styles.image}
+              draggable={false}
+            />
             <div
               className={clsx(styles.regionLayer, mode !== 'region' && styles.regionLayerInactive)}
               {...selection.handlers}
