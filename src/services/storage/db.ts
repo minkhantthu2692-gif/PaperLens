@@ -1,9 +1,10 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { DocumentRecord, SourceAsset } from '@/domain/document';
 import type { AiCacheRecord } from '@/services/ai/cache';
+import type { TranslationHistoryRecord } from '@/services/translator/history';
 
 export const DATABASE_NAME = 'paperlens';
-export const DATABASE_VERSION = 2;
+export const DATABASE_VERSION = 3;
 
 interface PaperLensSchema extends DBSchema {
   documents: {
@@ -18,6 +19,11 @@ interface PaperLensSchema extends DBSchema {
   aiCache: {
     key: string;
     value: AiCacheRecord;
+    indexes: { 'by-createdAt': number };
+  };
+  translationHistory: {
+    key: string;
+    value: TranslationHistoryRecord;
     indexes: { 'by-createdAt': number };
   };
 }
@@ -36,6 +42,10 @@ export function getDatabase(): Promise<IDBPDatabase<PaperLensSchema>> {
         if (oldVersion < 2) {
           const aiCache = database.createObjectStore('aiCache', { keyPath: 'key' });
           aiCache.createIndex('by-createdAt', 'createdAt');
+        }
+        if (oldVersion < 3) {
+          const history = database.createObjectStore('translationHistory', { keyPath: 'id' });
+          history.createIndex('by-createdAt', 'createdAt');
         }
         // Add future migrations below with `if (oldVersion < N) { ... }`.
       },

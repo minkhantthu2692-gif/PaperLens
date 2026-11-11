@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import styles from './Dialog.module.css';
 import { Button } from './Button';
@@ -11,9 +12,18 @@ interface DialogProps {
   onClose: () => void;
   children?: ReactNode;
   footer?: ReactNode;
+  className?: string | undefined;
 }
 
-export function Dialog({ open, title, description, onClose, children, footer }: DialogProps) {
+export function Dialog({
+  open,
+  title,
+  description,
+  onClose,
+  children,
+  footer,
+  className,
+}: DialogProps) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -48,7 +58,7 @@ export function Dialog({ open, title, description, onClose, children, footer }: 
   return (
     <dialog
       ref={dialogRef}
-      className={styles.dialog}
+      className={clsx(styles.dialog, className)}
       aria-labelledby={titleId}
       {...(description ? { 'aria-describedby': descriptionId } : {})}
       onMouseDown={(event) => {

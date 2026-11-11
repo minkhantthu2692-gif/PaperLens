@@ -13,6 +13,7 @@ export interface AiCacheRecord {
   model: string;
   task: AiTaskId;
   result: string;
+  detectedSourceLanguage?: string;
   inputChars: number;
   outputChars: number;
 }
@@ -22,6 +23,8 @@ interface AiCacheKeyInput {
   task: AiTaskId;
   text: string;
   targetLanguage?: string;
+  sourceLanguage?: string;
+  detectSourceLanguage?: boolean;
 }
 
 function normalizeCacheText(text: string): string {
@@ -29,7 +32,7 @@ function normalizeCacheText(text: string): string {
 }
 
 export function buildAiCacheKey(input: AiCacheKeyInput): string {
-  const { settings, task, text, targetLanguage } = input;
+  const { settings, task, text, targetLanguage, sourceLanguage, detectSourceLanguage } = input;
   return JSON.stringify({
     version: AI_CACHE_KEY_VERSION,
     promptVersion: AI_PROMPT_VERSION,
@@ -39,6 +42,8 @@ export function buildAiCacheKey(input: AiCacheKeyInput): string {
     maxOutputTokens: settings.guardrails.maxOutputTokens,
     task,
     targetLanguage: task === 'translate' ? (targetLanguage ?? '') : '',
+    sourceLanguage: task === 'translate' ? (sourceLanguage ?? '') : '',
+    detectSourceLanguage: task === 'translate' && detectSourceLanguage === true,
     text: normalizeCacheText(text),
   });
 }

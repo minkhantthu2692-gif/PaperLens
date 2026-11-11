@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe('database migrations', () => {
-  it('adds the AI cache store when upgrading a version 1 database', async () => {
+  it('adds translation history when upgrading a version 2 database', async () => {
     const database = fakeDatabase();
     openDBMock.mockImplementation(
       (
@@ -33,7 +33,7 @@ describe('database migrations', () => {
         _version: number,
         config: { upgrade: (db: unknown, oldVersion: number) => void },
       ) => {
-        config.upgrade(database, 1);
+        config.upgrade(database, 2);
         return Promise.resolve(database);
       },
     );
@@ -41,9 +41,11 @@ describe('database migrations', () => {
     const { DATABASE_VERSION, getDatabase } = await import('./db');
     await getDatabase();
 
-    expect(DATABASE_VERSION).toBe(2);
+    expect(DATABASE_VERSION).toBe(3);
     expect(database.createObjectStore).toHaveBeenCalledTimes(1);
-    expect(database.createObjectStore).toHaveBeenCalledWith('aiCache', { keyPath: 'key' });
+    expect(database.createObjectStore).toHaveBeenCalledWith('translationHistory', {
+      keyPath: 'id',
+    });
     expect(database.stores[0]?.createIndex).toHaveBeenCalledWith('by-createdAt', 'createdAt');
   });
 
@@ -63,6 +65,11 @@ describe('database migrations', () => {
     const { getDatabase } = await import('./db');
     await getDatabase();
 
-    expect(database.stores.map((store) => store.name)).toEqual(['documents', 'assets', 'aiCache']);
+    expect(database.stores.map((store) => store.name)).toEqual([
+      'documents',
+      'assets',
+      'aiCache',
+      'translationHistory',
+    ]);
   });
 });

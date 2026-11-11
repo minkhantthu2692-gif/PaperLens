@@ -49,6 +49,8 @@ export interface AiRequestOptions {
   task: AiTaskId;
   text: string;
   targetLanguage?: string;
+  sourceLanguage?: string;
+  detectSourceLanguage?: boolean;
   signal?: AbortSignal;
 }
 
@@ -60,6 +62,7 @@ export interface AiResponse {
   inputChars: number;
   outputChars: number;
   cached: boolean;
+  detectedSourceLanguage?: string;
 }
 
 export const DEFAULT_AI_GUARDRAILS: AiGuardrails = {

@@ -111,6 +111,60 @@ describe('requestAi guardrails', () => {
     expect(body.messages[0]?.content).toContain('Burmese');
   });
 
+  it('returns a detected source language and translated text for auto-detect requests', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        choices: [
+          {
+            message: {
+              content: '{"detectedSourceLanguage":"en","translation":"Hola"}',
+            },
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await requestAi({
+      settings: settingsWith(),
+      apiKey: 'test-key',
+      task: 'translate',
+      text: 'Hello',
+      targetLanguage: 'Spanish',
+      detectSourceLanguage: true,
+    });
+
+    expect(result).toMatchObject({ text: 'Hola', detectedSourceLanguage: 'en' });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(body.messages[0]?.content).toContain('"detectedSourceLanguage"');
+    expect(body.messages[0]?.content).toContain('Spanish');
+  });
+
+  it('rejects malformed source detection results', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(200, { choices: [{ message: { content: 'Not structured output' } }] }),
+        ),
+    );
+
+    await expect(
+      requestAi({
+        settings: settingsWith(),
+        apiKey: 'test-key',
+        task: 'translate',
+        text: 'Hello',
+        targetLanguage: 'Spanish',
+        detectSourceLanguage: true,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-response' });
+  });
+
   it('retries transient rate limits once and then succeeds', async () => {
     const fetchMock = vi
       .fn()

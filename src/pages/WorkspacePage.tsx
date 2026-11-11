@@ -18,6 +18,7 @@ import {
   FileText,
   FileType,
   FileType2,
+  Languages,
   Printer,
   SearchX,
   X,
@@ -30,6 +31,7 @@ import { useFocusMode } from '@/components/layout/FocusModeContext';
 import { Button } from '@/components/ui/Button';
 import type { DocumentRecord, SourceAsset } from '@/domain/document';
 import { AiAssistantDialog } from '@/features/ai/AiAssistantDialog';
+import { TranslatorDialog } from '@/features/translator/TranslatorDialog';
 import { CleanupDialog, type CleanupScope } from '@/features/editor/CleanupDialog';
 import { OcrDialog, type OcrTarget } from '@/features/ocr/OcrDialog';
 import {
@@ -110,6 +112,7 @@ export default function WorkspacePage() {
     selection: EditorSelectionContext | null;
   } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [translatorOpen, setTranslatorOpen] = useState(false);
   const editorRef = useRef<Editor | null>(null);
   const focusToggleRef = useRef<HTMLButtonElement>(null);
   const wasFocusModeRef = useRef(false);
@@ -534,6 +537,15 @@ export default function WorkspacePage() {
                 <Eraser size={16} aria-hidden="true" />
                 {t('workspace.cleanup')}
               </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setTranslatorOpen(true)}
+                disabled={!editorReady}
+              >
+                <Languages size={16} aria-hidden="true" />
+                {t('translator.open')}
+              </Button>
               <div className={styles.exportWrap} ref={menuRef}>
                 <Button
                   variant="primary"
@@ -739,6 +751,15 @@ export default function WorkspacePage() {
         onApply={handleApplyAi}
         onOpenSettings={() => {
           setAiOpen(false);
+          navigate('/settings');
+        }}
+      />
+
+      <TranslatorDialog
+        open={translatorOpen}
+        onClose={() => setTranslatorOpen(false)}
+        onOpenSettings={() => {
+          setTranslatorOpen(false);
           navigate('/settings');
         }}
       />

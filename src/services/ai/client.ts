@@ -37,6 +37,35 @@ export class AiError extends Error {
   }
 }
 
+function parseDetectedTranslation(response: string): {
+  translation: string;
+  detectedSourceLanguage: string;
+} {
+  const normalized = response.trim().replace(/^```(?:json)?\s*|\s*```$/gi, '');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new AiError('invalid-response');
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new AiError('invalid-response');
+  }
+  const record = parsed as Record<string, unknown>;
+  if (
+    typeof record['translation'] !== 'string' ||
+    !record['translation'].trim() ||
+    typeof record['detectedSourceLanguage'] !== 'string' ||
+    !/^(?:[a-z]{2}|und)$/i.test(record['detectedSourceLanguage'])
+  ) {
+    throw new AiError('invalid-response');
+  }
+  return {
+    translation: record['translation'].trim(),
+    detectedSourceLanguage: record['detectedSourceLanguage'].toLowerCase(),
+  };
+}
+
 let activeRequests = 0;
 
 export function resetAiRuntimeState(): void {
@@ -144,7 +173,16 @@ async function fetchOnce(input: FetchOnceInput): Promise<{
 }
 
 export async function requestAi(options: AiRequestOptions): Promise<AiResponse> {
-  const { settings, apiKey, task, text, targetLanguage, signal } = options;
+  const {
+    settings,
+    apiKey,
+    task,
+    text,
+    targetLanguage,
+    sourceLanguage,
+    detectSourceLanguage,
+    signal,
+  } = options;
   const { guardrails } = settings;
 
   const trimmedKey = apiKey.trim();
@@ -175,6 +213,8 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
         task,
         text: inputText,
         ...(targetLanguage ? { targetLanguage } : {}),
+        ...(sourceLanguage ? { sourceLanguage } : {}),
+        ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
       })
     : null;
 
@@ -190,6 +230,9 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
           inputChars: cached.inputChars,
           outputChars: cached.outputChars,
           cached: true,
+          ...(cached.detectedSourceLanguage
+            ? { detectedSourceLanguage: cached.detectedSourceLanguage }
+            : {}),
         };
       }
     } catch {
@@ -210,7 +253,10 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     throw new AiError('busy');
   }
 
-  const prompt = buildAiPrompt(task, inputText, targetLanguage);
+  const prompt = buildAiPrompt(task, inputText, targetLanguage, {
+    ...(sourceLanguage ? { sourceLanguage } : {}),
+    ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
+  });
   const request = buildChatRequest({
     providerId: settings.providerId,
     baseUrl,
@@ -232,8 +278,10 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
           ...(signal ? { signal } : {}),
           providerId: settings.providerId,
         });
-        const resultText = response.text.trim();
-        recordAiUsage(inputText.length, resultText.length);
+        const rawResult = response.text.trim();
+        const detected = detectSourceLanguage ? parseDetectedTranslation(rawResult) : null;
+        const resultText = detected?.translation ?? rawResult;
+        recordAiUsage(inputText.length, rawResult.length);
         if (cacheKey) {
           const createdAt = Date.now();
           try {
@@ -246,8 +294,9 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
                 model,
                 task,
                 result: resultText,
+                ...(detected ? { detectedSourceLanguage: detected.detectedSourceLanguage } : {}),
                 inputChars: inputText.length,
-                outputChars: resultText.length,
+                outputChars: rawResult.length,
               },
               settings.cache,
             );
@@ -261,8 +310,9 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
           model,
           retries,
           inputChars: inputText.length,
-          outputChars: resultText.length,
+          outputChars: rawResult.length,
           cached: false,
+          ...(detected ? { detectedSourceLanguage: detected.detectedSourceLanguage } : {}),
         };
       } catch (error) {
         const aiError = error instanceof AiError ? error : new AiError('unknown');

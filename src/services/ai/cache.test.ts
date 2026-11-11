@@ -49,4 +49,15 @@ describe('buildAiCacheKey', () => {
       buildAiCacheKey(baseInput),
     );
   });
+
+  it('distinguishes translation source languages and auto-detection responses', () => {
+    const translationInput = {
+      ...baseInput,
+      task: 'translate' as const,
+      targetLanguage: 'Spanish',
+    };
+    const base = buildAiCacheKey(translationInput);
+    expect(buildAiCacheKey({ ...translationInput, sourceLanguage: 'English' })).not.toBe(base);
+    expect(buildAiCacheKey({ ...translationInput, detectSourceLanguage: true })).not.toBe(base);
+  });
 });

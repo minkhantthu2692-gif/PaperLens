@@ -133,10 +133,14 @@ export async function deleteDocument(id: string): Promise<void> {
 
 export async function deleteAllLocalData(): Promise<void> {
   const database = await getDatabase();
-  const transaction = database.transaction(['documents', 'assets', 'aiCache'], 'readwrite');
+  const transaction = database.transaction(
+    ['documents', 'assets', 'aiCache', 'translationHistory'],
+    'readwrite',
+  );
   await transaction.objectStore('documents').clear();
   await transaction.objectStore('assets').clear();
   await transaction.objectStore('aiCache').clear();
+  await transaction.objectStore('translationHistory').clear();
   await transaction.done;
 }
 

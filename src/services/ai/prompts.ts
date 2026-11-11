@@ -1,6 +1,6 @@
 import type { AiTaskId } from './types';
 
-export const AI_PROMPT_VERSION = 1;
+export const AI_PROMPT_VERSION = 2;
 
 export interface AiPrompt {
   system: string;
@@ -11,7 +11,7 @@ const BASE_SYSTEM_PROMPT = [
   'You are a careful document editing assistant.',
   'Preserve every fact, name, number, date, and unit exactly.',
   'Never invent missing content. Never add commentary, headings, or explanations that are not in the source.',
-  'Return only the resulting text. Use plain paragraphs; do not use Markdown code fences.',
+  'Use plain paragraphs; do not use Markdown code fences.',
 ].join(' ');
 
 const TASK_INSTRUCTIONS: Record<Exclude<AiTaskId, 'translate'>, string> = {
@@ -25,13 +25,23 @@ const TASK_INSTRUCTIONS: Record<Exclude<AiTaskId, 'translate'>, string> = {
     'Summarize the key points of the text clearly and concisely. Do not add facts that are not present in the source.',
 };
 
-export function buildAiPrompt(task: AiTaskId, text: string, targetLanguage?: string): AiPrompt {
+export function buildAiPrompt(
+  task: AiTaskId,
+  text: string,
+  targetLanguage?: string,
+  options: { sourceLanguage?: string; detectSourceLanguage?: boolean } = {},
+): AiPrompt {
   let instruction: string;
   if (task === 'translate') {
     const target = targetLanguage?.trim() || 'English';
-    instruction = `Translate the text into ${target}. Preserve names, numbers, and paragraph structure. Return only the translation.`;
+    const source = options.sourceLanguage?.trim();
+    const sourceInstruction = source ? ` The source language is ${source}.` : '';
+    const translationInstruction = `Translate the text into ${target}.${sourceInstruction} Preserve names, numbers, and paragraph structure.`;
+    instruction = options.detectSourceLanguage
+      ? `${translationInstruction} Detect the source language and return only a valid JSON object with exactly two string properties: "detectedSourceLanguage" (an ISO 639-1 language code, or "und" if unknown) and "translation" (the complete translation). Do not use Markdown fences.`
+      : `${translationInstruction} Return only the translation.`;
   } else {
-    instruction = TASK_INSTRUCTIONS[task];
+    instruction = `${TASK_INSTRUCTIONS[task]} Return only the resulting text.`;
   }
 
   return {
