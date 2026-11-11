@@ -15,6 +15,7 @@ import {
   Download,
   Eraser,
   FileText,
+  FileType,
   FileType2,
   Printer,
   SearchX,
@@ -34,7 +35,12 @@ import {
   type SaveState,
 } from '@/features/workspace/EditorPanel';
 import { SourcePanel } from '@/features/workspace/SourcePanel';
-import { exportHtml, exportPlainText, printDocument } from '@/services/export/exportDocument';
+import {
+  exportDocx,
+  exportHtml,
+  exportPlainText,
+  printDocument,
+} from '@/services/export/exportDocument';
 import { textToHtmlParagraphs } from '@/services/text/cleanup';
 import {
   getDocument,
@@ -65,7 +71,7 @@ function readSplit(): number {
   return 50;
 }
 
-type ExportFormat = 'txt' | 'html' | 'pdf';
+type ExportFormat = 'txt' | 'html' | 'docx' | 'pdf';
 
 export default function WorkspacePage() {
   const { documentId } = useParams<{ documentId: string }>();
@@ -80,6 +86,7 @@ export default function WorkspacePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [split, setSplit] = useState(readSplit);
   const [mobilePanel, setMobilePanel] = useState<'source' | 'editor'>('editor');
   const [ocrTarget, setOcrTarget] = useState<OcrTarget | null>(null);
@@ -309,14 +316,19 @@ export default function WorkspacePage() {
     }
   };
 
-  const handleExport = (format: ExportFormat) => {
+  const handleExport = async (format: ExportFormat) => {
     setExportOpen(false);
     const editor = editorRef.current;
-    if (!editor || !document) {
+    if (!editor || !document || exporting) {
       return;
     }
     setError(null);
     try {
+      if (format === 'docx') {
+        setExporting(true);
+        await exportDocx(document.title, editor.getJSON());
+        return;
+      }
       const html = editor.getHTML();
       if (format === 'txt') {
         exportPlainText(document.title, editor.getText({ blockSeparator: '\n\n' }));
@@ -327,6 +339,8 @@ export default function WorkspacePage() {
       }
     } catch {
       setError(t('workspace.exportError'));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -458,9 +472,11 @@ export default function WorkspacePage() {
                 aria-haspopup="menu"
                 aria-expanded={exportOpen}
                 onClick={() => setExportOpen((value) => !value)}
+                disabled={exporting}
+                aria-busy={exporting}
               >
                 <Download size={16} aria-hidden="true" />
-                {t('workspace.export')}
+                {exporting ? t('workspace.exporting') : t('workspace.export')}
                 <ChevronDown size={14} aria-hidden="true" />
               </Button>
               {exportOpen ? (
@@ -469,7 +485,7 @@ export default function WorkspacePage() {
                     type="button"
                     role="menuitem"
                     className={styles.menuItem}
-                    onClick={() => handleExport('txt')}
+                    onClick={() => void handleExport('txt')}
                   >
                     <FileText size={16} aria-hidden="true" />
                     {t('workspace.exportTxt')}
@@ -478,7 +494,7 @@ export default function WorkspacePage() {
                     type="button"
                     role="menuitem"
                     className={styles.menuItem}
-                    onClick={() => handleExport('html')}
+                    onClick={() => void handleExport('html')}
                   >
                     <FileType2 size={16} aria-hidden="true" />
                     {t('workspace.exportHtml')}
@@ -487,7 +503,16 @@ export default function WorkspacePage() {
                     type="button"
                     role="menuitem"
                     className={styles.menuItem}
-                    onClick={() => handleExport('pdf')}
+                    onClick={() => void handleExport('docx')}
+                  >
+                    <FileType size={16} aria-hidden="true" />
+                    {t('workspace.exportDocx')}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.menuItem}
+                    onClick={() => void handleExport('pdf')}
                   >
                     <Printer size={16} aria-hidden="true" />
                     {t('workspace.exportPdf')}

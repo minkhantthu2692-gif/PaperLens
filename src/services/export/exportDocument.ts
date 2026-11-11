@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import type { JSONContent } from '@tiptap/react';
 import { downloadBlob, sanitizeFileName } from '@/lib/file';
 
 function escapeHtml(value: string): string {
@@ -44,6 +45,12 @@ export function exportHtml(title: string, html: string): void {
     new Blob([buildHtmlDocument(title, sanitized)], { type: 'text/html;charset=utf-8' }),
     `${sanitizeFileName(title)}.html`,
   );
+}
+
+export async function exportDocx(title: string, content: JSONContent): Promise<void> {
+  const { createDocxBlob } = await import('./docxExport');
+  const blob = await createDocxBlob(title, content);
+  downloadBlob(blob, `${sanitizeFileName(title)}.docx`);
 }
 
 export function printDocument(title: string, html: string): void {

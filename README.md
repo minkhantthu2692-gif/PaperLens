@@ -11,8 +11,9 @@ workflow.
 > rich-text editing, TXT/HTML/PDF (print) export, and backup/restore. Selected-text AI actions
 > support ten provider options, dynamic model discovery, explicit key handling,
 > user-configured usage limits, and an opt-in exact-match result cache. A service worker and
-> web app manifest make the production build installable and available offline. Representative
-> scan-quality testing and DOCX export remain future work.
+> web app manifest make the production build installable and available offline. DOCX export
+> preserves headings, formatting, links, lists, quotes, and code. Representative scan-quality
+> testing remains future work.
 
 ## Product rules
 
@@ -74,7 +75,10 @@ product specification.
   cache indicator and no provider request. Entries expire after 1-90 days, are capped at
   1-500 results, and can be cleared independently in Settings. The cache lives in IndexedDB,
   is excluded from backups, and is separate from document storage.
-- Export to plain text, standalone HTML, or PDF through the browser print dialog.
+- Export to plain text, standalone HTML, Word (DOCX), or PDF through the browser print
+  dialog. DOCX preserves headings, bold/italic/underline/strikethrough/code runs, safe
+  external links, bulleted and numbered lists, block quotes, code blocks, alignment, and
+  horizontal rules. Unsafe link protocols are rendered as plain text.
 - Versioned JSON backup and restore, storage-usage display, and delete-all-local-data controls.
 - Installable PWA with a web app manifest and service worker. The production build caches the
   app shell and same-origin static assets for offline startup; cross-origin AI requests are
@@ -87,10 +91,11 @@ environment. Optional packs come from a curated list and are checksum-verified, 
 checksums and pinned revision must be updated manually. Cleanup tools are conservative
 heuristics, not AI, and may still need manual review. AI actions are limited to selected text,
 depend on provider CORS/browser support, and cannot enforce provider-side quotas or billing.
-DOCX export and direct PDF file generation are not implemented yet. The service worker does
-not add background sync or push notifications, and PWA behavior still needs verification on
-representative mobile browsers. Browser storage and caches can be cleared or evicted, so keep
-backups.
+Direct PDF file generation is not implemented; PDF export uses the browser print dialog. The
+service worker does not add background sync or push notifications, and PWA behavior still
+needs verification on representative mobile browsers. DOCX round-trip fidelity for very
+complex layouts has not been validated. Browser storage and caches can be cleared or evicted,
+so keep backups.
 
 ## Getting started
 
