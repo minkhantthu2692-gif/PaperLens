@@ -68,6 +68,7 @@ export function EditorPanel({
   const [aiBubble, setAiBubble] = useState<AiBubblePosition | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const pendingRef = useRef<EditorSnapshot | null>(null);
+  const unsavedRef = useRef(false);
   const onSaveStateRef = useRef(onSaveStateChange);
   onSaveStateRef.current = onSaveStateChange;
 
@@ -82,8 +83,13 @@ export function EditorPanel({
     onSaveStateRef.current('saving');
     try {
       await saveEditorContent(documentId, pending);
-      onSaveStateRef.current('saved');
+      if (!pendingRef.current) {
+        unsavedRef.current = false;
+        onSaveStateRef.current('saved');
+      }
     } catch {
+      pendingRef.current ??= pending;
+      unsavedRef.current = true;
       onSaveStateRef.current('error');
     }
   }, [documentId]);
@@ -100,6 +106,7 @@ export function EditorPanel({
     onUpdate: ({ editor: current }) => {
       const snapshot = createSnapshot(current);
       pendingRef.current = snapshot;
+      unsavedRef.current = true;
       const text = snapshot.text;
       setStats({ words: countWords(text), characters: text.length });
       onSaveStateRef.current('saving');
@@ -161,6 +168,18 @@ export function EditorPanel({
       setAiBubble(null);
     };
   }, [editor]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!unsavedRef.current) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   useEffect(() => {
     return () => {

@@ -12,6 +12,7 @@
     "predev": "node scripts/sync-ocr-assets.mjs",
     "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build",
     "prebuild": "node scripts/sync-ocr-assets.mjs",
+    "postbuild": "node scripts/copy-spa-fallback.mjs",
     "preview": "node ./node_modules/vite/bin/vite.js preview",
     "prepreview": "node scripts/sync-ocr-assets.mjs",
     "typecheck": "node ./node_modules/typescript/bin/tsc -b",

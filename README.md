@@ -46,7 +46,8 @@ product specification.
 - Import PDF, PNG, JPEG, WebP, and UTF-8 TXT files up to 25 MB; files are validated and kept
   as immutable local source assets.
 - Library with rename/delete, local autosave, and a responsive two-panel workspace with a
-  draggable splitter and mobile Source/Editor tabs.
+  draggable splitter and mobile Source/Editor tabs. Pending edits are saved on tab close and
+  trigger a browser warning if saving is still in progress or failed.
 - PDF viewing with page navigation, zoom, thumbnails, approximate text selection, page-text
   insertion, and drag-to-select region copy/download/OCR. Image zoom, region crop, and OCR.
 - Local OCR for the current PDF page, all pages, the full image, or a selected region, with
@@ -169,8 +170,9 @@ The app is a static SPA with no required server functions. The build output is `
 `VITE_BASE_PATH` controls the public base path (default `/`), required for sub-path
 deployments such as GitHub Pages (`/PaperLens/`). Because routing is client-side, configure an
 SPA fallback to `index.html`: on Vercel add a rewrite, on Cloudflare Pages enable single-page
-app handling, and on GitHub Pages publish a `404.html` copy of `index.html`. The production
-build registers `sw.js` and exposes `manifest.webmanifest`; both respect `VITE_BASE_PATH`.
+app handling, and on GitHub Pages use the `404.html` fallback that the build writes
+automatically. The production build registers `sw.js` and exposes `manifest.webmanifest`; both
+respect `VITE_BASE_PATH`.
 Service workers require HTTPS (or localhost), so test installation against a deployed build or
 `npm run preview` rather than the plain development server.
 
@@ -188,6 +190,10 @@ Service workers require HTTPS (or localhost), so test installation against a dep
   in browser storage. Keys and document text are never logged, backed up, or proxied. If the
   exact-match AI cache is enabled, the normalized selected text and result are stored locally
   in IndexedDB until they expire or you clear the cache.
+- The production HTML includes a restrictive Content-Security-Policy meta tag. It restricts
+  scripts, workers, frames, and objects to the app origin (with local WebAssembly and blob
+  workers allowed), while `connect-src` remains open to HTTPS AI providers and localhost
+  custom endpoints.
 - No telemetry or analytics are included.
 
 ## License
