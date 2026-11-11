@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { AlertCircle, Eye, Redo2, RotateCcw, RotateCw, Sparkles, Undo2, Wand2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { TFunction } from 'i18next';
@@ -38,6 +38,7 @@ const AI_MAX_DIMENSION = 1024;
 const FULL_MAX_DIMENSION = 4096;
 const FULL_MAX_PIXELS = 24_000_000;
 const PREVIEW_DEBOUNCE_MS = 220;
+const PREVIEW_MAX_HEIGHT = 'clamp(16rem, 58vh, 34rem)';
 
 const PRESET_LABEL_KEYS = {
   document: 'refine.presetDocument',
@@ -692,8 +693,14 @@ export function ImageRefineDialog({
     onClose();
   };
 
-  const aspectStyle = originalPreview
-    ? { aspectRatio: `${originalPreview.width} / ${originalPreview.height}` }
+  // Keep the preview inside a laptop-height dialog: the stage shrinks with the
+  // page aspect ratio instead of pushing the controls far below the viewport.
+  const aspectStyle: CSSProperties | undefined = originalPreview
+    ? {
+        aspectRatio: `${originalPreview.width} / ${originalPreview.height}`,
+        width: `min(100%, calc(${PREVIEW_MAX_HEIGHT} * ${originalPreview.width / originalPreview.height}))`,
+        maxHeight: PREVIEW_MAX_HEIGHT,
+      }
     : undefined;
 
   const footer = (
