@@ -209,6 +209,23 @@ describe('ImageRefineDialog', () => {
     expect(lastParams().deskew).toBe(true);
   });
 
+  it('shows the local quality report after Analyze without changing settings', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const analyze = screen.getByRole('button', { name: 'Analyze' });
+    await waitFor(() => expect(analyze).toBeEnabled());
+    await user.click(analyze);
+
+    const heading = await screen.findByRole('heading', { name: 'Image quality' });
+    const section = heading.closest('section') as HTMLElement;
+    expect(within(section).getByText('Low contrast')).toBeInTheDocument();
+    expect(within(section).getByText('28')).toBeInTheDocument();
+    expect(mocks.decodeImageBlob).toHaveBeenCalledWith(asset.blob);
+    // Measuring must never apply suggested settings by itself.
+    expect(lastParams()).toEqual(DEFAULT_REFINEMENT_PARAMS);
+  });
+
   it('requests AI analysis and applies AI suggestions to local controls', async () => {
     const user = userEvent.setup();
     mocks.requestAiImageRefinement.mockResolvedValue({

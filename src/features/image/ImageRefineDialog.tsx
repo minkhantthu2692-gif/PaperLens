@@ -377,6 +377,7 @@ export function ImageRefineDialog({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [localReport, setLocalReport] = useState<ImageQualityReport | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'running'>('idle');
   const [aiReport, setAiReport] = useState<AiImageReport | null>(null);
   const [aiStatus, setAiStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [aiError, setAiError] = useState<AiErrorCode | 'not-configured' | null>(null);
@@ -418,6 +419,7 @@ export function ImageRefineDialog({
     setError(null);
     setNotice(null);
     setLocalReport(null);
+    setAnalysisStatus('idle');
     setAiReport(null);
     setAiStatus('idle');
     setAiError(null);
@@ -567,11 +569,12 @@ export function ImageRefineDialog({
   };
 
   const runLocalAnalysis = async (apply: boolean) => {
-    if (busy) {
+    if (busy || analysisStatus === 'running') {
       return;
     }
-    setStatus('processing');
+    setAnalysisStatus('running');
     setError(null);
+    setNotice(null);
     try {
       const buffer = await decodeImageBlob(asset.blob);
       const { buffer: scaled } = resizeBuffer(buffer, ANALYSIS_MAX_DIMENSION, 1_200_000);
@@ -584,7 +587,7 @@ export function ImageRefineDialog({
     } catch {
       setError(t('refine.analysisError'));
     } finally {
-      setStatus('idle');
+      setAnalysisStatus('idle');
     }
   };
 
@@ -735,7 +738,7 @@ export function ImageRefineDialog({
             <Button
               variant="secondary"
               size="sm"
-              disabled={busy}
+              disabled={busy || analysisStatus === 'running'}
               onClick={() => void runLocalAnalysis(true)}
             >
               <Wand2 size={15} aria-hidden="true" />
@@ -744,11 +747,12 @@ export function ImageRefineDialog({
             <Button
               variant="ghost"
               size="sm"
-              disabled={busy}
+              disabled={busy || analysisStatus === 'running'}
+              aria-busy={analysisStatus === 'running'}
               onClick={() => void runLocalAnalysis(false)}
             >
               <Eye size={15} aria-hidden="true" />
-              {t('refine.analyze')}
+              {analysisStatus === 'running' ? t('refine.analyzing') : t('refine.analyze')}
             </Button>
             <Button
               variant="ghost"
@@ -793,6 +797,67 @@ export function ImageRefineDialog({
         </div>
 
         {hasSavedRefinement ? <p className={styles.hint}>{t('refine.existingVersion')}</p> : null}
+
+        {error ? (
+          <p className={styles.alert} role="alert">
+            <AlertCircle size={16} aria-hidden="true" />
+            {error}
+          </p>
+        ) : null}
+        {notice ? (
+          <p className={styles.notice} role="status">
+            {notice}
+          </p>
+        ) : null}
+
+        {analysisStatus === 'running' || localReport ? (
+          <section
+            className={styles.analysisPanel}
+            aria-labelledby="refine-analysis-heading"
+            aria-busy={analysisStatus === 'running'}
+          >
+            <h3 id="refine-analysis-heading" className={styles.sectionTitle}>
+              {t('refine.analysisTitle')}
+            </h3>
+            {analysisStatus === 'running' && !localReport ? (
+              <p className={styles.hint} role="status">
+                {t('refine.analyzing')}
+              </p>
+            ) : null}
+            {localReport ? (
+              <>
+                <dl className={styles.metrics}>
+                  <div className={styles.metric}>
+                    <dt>{t('refine.metricBrightness')}</dt>
+                    <dd>{localReport.brightness}</dd>
+                  </div>
+                  <div className={styles.metric}>
+                    <dt>{t('refine.metricContrast')}</dt>
+                    <dd>{localReport.contrast}</dd>
+                  </div>
+                  <div className={styles.metric}>
+                    <dt>{t('refine.metricSharpness')}</dt>
+                    <dd>{localReport.sharpness}</dd>
+                  </div>
+                  <div className={styles.metric}>
+                    <dt>{t('refine.metricNoise')}</dt>
+                    <dd>{localReport.noise}</dd>
+                  </div>
+                  <div className={styles.metric}>
+                    <dt>{t('refine.metricSkew')}</dt>
+                    <dd>{localReport.skewDegrees.toFixed(1)}°</dd>
+                  </div>
+                  <div className={styles.metric}>
+                    <dt>{t('refine.metricLighting')}</dt>
+                    <dd>{localReport.backgroundVariation}</dd>
+                  </div>
+                </dl>
+                <IssueList issues={localReport.issues} t={t} />
+                <p className={styles.hint}>{t('refine.analyzeHint')}</p>
+              </>
+            ) : null}
+          </section>
+        ) : null}
 
         <div className={styles.grid}>
           <div className={styles.previewColumn}>
@@ -860,42 +925,6 @@ export function ImageRefineDialog({
 
             <p className={styles.hint}>{t('refine.previewNote')}</p>
             <p className={styles.hint}>{t('refine.originalPreserved')}</p>
-
-            {localReport ? (
-              <section className={styles.section} aria-labelledby="refine-analysis-heading">
-                <h3 id="refine-analysis-heading" className={styles.sectionTitle}>
-                  {t('refine.analysisTitle')}
-                </h3>
-                <dl className={styles.metrics}>
-                  <div className={styles.metric}>
-                    <dt>{t('refine.metricBrightness')}</dt>
-                    <dd>{localReport.brightness}</dd>
-                  </div>
-                  <div className={styles.metric}>
-                    <dt>{t('refine.metricContrast')}</dt>
-                    <dd>{localReport.contrast}</dd>
-                  </div>
-                  <div className={styles.metric}>
-                    <dt>{t('refine.metricSharpness')}</dt>
-                    <dd>{localReport.sharpness}</dd>
-                  </div>
-                  <div className={styles.metric}>
-                    <dt>{t('refine.metricNoise')}</dt>
-                    <dd>{localReport.noise}</dd>
-                  </div>
-                  <div className={styles.metric}>
-                    <dt>{t('refine.metricSkew')}</dt>
-                    <dd>{localReport.skewDegrees.toFixed(1)}°</dd>
-                  </div>
-                  <div className={styles.metric}>
-                    <dt>{t('refine.metricLighting')}</dt>
-                    <dd>{localReport.backgroundVariation}</dd>
-                  </div>
-                </dl>
-                <IssueList issues={localReport.issues} t={t} />
-                <p className={styles.hint}>{t('refine.analyzeHint')}</p>
-              </section>
-            ) : null}
           </div>
 
           <div className={styles.controlsColumn}>
@@ -1189,18 +1218,6 @@ export function ImageRefineDialog({
             </section>
           </div>
         </div>
-
-        {error ? (
-          <p className={styles.alert} role="alert">
-            <AlertCircle size={16} aria-hidden="true" />
-            {error}
-          </p>
-        ) : null}
-        {notice ? (
-          <p className={styles.notice} role="status">
-            {notice}
-          </p>
-        ) : null}
       </div>
     </Dialog>
   );

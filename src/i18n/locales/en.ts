@@ -301,6 +301,7 @@ export const en = {
     autoRefine: 'Auto refine',
     autoApplied: 'Suggested settings applied. Review the preview before applying.',
     analyze: 'Analyze',
+    analyzing: 'Measuring image quality…',
     analyzeHint:
       'Measurements are computed on this device. They are estimates and do not guarantee OCR accuracy.',
     analysisTitle: 'Image quality',
