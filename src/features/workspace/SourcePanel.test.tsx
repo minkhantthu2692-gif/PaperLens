@@ -79,6 +79,25 @@ describe('SourcePanel image viewer', () => {
     expect(screen.queryByRole('group', { name: 'Hand tool' })).toBeNull();
   });
 
+  it('pinch-zooms the image with two fingers without arming the hand tool', () => {
+    const { container } = renderPanel();
+    const scroll = container.querySelector('[class*="scroll"]') as HTMLElement;
+
+    expect(screen.getByText('100%')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Hand tool' })).toBeNull();
+
+    fireEvent.pointerDown(scroll, { button: 0, pointerId: 1, clientX: 100, clientY: 200 });
+    fireEvent.pointerDown(scroll, { button: 0, pointerId: 2, clientX: 200, clientY: 200 });
+    fireEvent.pointerMove(scroll, { pointerId: 2, clientX: 300, clientY: 200 });
+    expect(screen.getByText('200%')).toBeInTheDocument();
+
+    fireEvent.pointerMove(scroll, { pointerId: 2, clientX: 400, clientY: 200 });
+    expect(screen.getByText('300%')).toBeInTheDocument();
+
+    fireEvent.pointerUp(scroll, { pointerId: 1 });
+    fireEvent.pointerUp(scroll, { pointerId: 2 });
+  });
+
   it('keeps the hand tool and region selection mutually exclusive', async () => {
     const user = userEvent.setup();
     renderPanel();

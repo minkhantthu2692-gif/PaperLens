@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
 import type { SourceAsset } from '@/domain/document';
-import { usePanScroll } from '@/hooks/usePanScroll';
+import { useImageGestures } from '@/hooks/useImageGestures';
 import {
   DEFAULT_REFINEMENT_PARAMS,
   createDefaultPerspectiveQuad,
@@ -401,7 +401,16 @@ export function ImageRefineDialog({
   const [view, setView] = useState<'after' | 'split' | 'before'>('split');
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [panEnabled, setPanEnabled] = useState(false);
-  const pan = usePanScroll(panEnabled, { label: t('common.handTool') });
+  const gestures = useImageGestures({
+    pan: panEnabled,
+    label: t('common.handTool'),
+    pinch: {
+      zoom,
+      min: MIN_ZOOM,
+      max: MAX_ZOOM,
+      onChange: (next) => setZoom(Math.round(next)),
+    },
+  });
   const [splitPosition, setSplitPosition] = useState(50);
   const previewControllerRef = useRef<AbortController | null>(null);
   const aiControllerRef = useRef<AbortController | null>(null);
@@ -960,13 +969,13 @@ export function ImageRefineDialog({
             </div>
 
             <div
-              ref={pan.containerRef}
+              ref={gestures.containerRef}
               className={clsx(
                 styles.compareViewport,
                 panEnabled && styles.panSurface,
-                panEnabled && pan.panning && styles.panSurfaceActive,
+                panEnabled && gestures.panning && styles.panSurfaceActive,
               )}
-              {...pan.surfaceProps}
+              {...gestures.surfaceProps}
             >
               <div className={styles.compareStage} style={stageStyle}>
                 {originalPreview ? (

@@ -192,6 +192,10 @@
   max-width: none;
 }
 
+.pinchSurface {
+  touch-action: pan-x pan-y;
+}
+
 .panSurface {
   cursor: grab;
   touch-action: none;

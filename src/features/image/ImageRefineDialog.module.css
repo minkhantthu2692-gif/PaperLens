@@ -79,6 +79,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   border-radius: var(--radius-md);
+  touch-action: pan-x pan-y;
 }
 
 .panSurface {

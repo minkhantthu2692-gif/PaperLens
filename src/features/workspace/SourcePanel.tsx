@@ -26,7 +26,7 @@ import type * as PdfJs from 'pdfjs-dist';
 import type { PDFDocumentProxy, PageViewport } from 'pdfjs-dist';
 import { Button } from '@/components/ui/Button';
 import type { SourceAsset } from '@/domain/document';
-import { usePanScroll } from '@/hooks/usePanScroll';
+import { useImageGestures } from '@/hooks/useImageGestures';
 import { downloadBlob, sanitizeFileName } from '@/lib/file';
 import { formatBytes } from '@/lib/format';
 import { MAX_TEXT_CHARACTERS } from '@/services/import/fileValidation';
@@ -768,7 +768,16 @@ function ImageSource({
   const [status, setStatus] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const selection = useRegionSelection(mode === 'region' && !panEnabled);
-  const pan = usePanScroll(panEnabled, { label: t('common.handTool') });
+  const gestures = useImageGestures({
+    pan: panEnabled,
+    label: t('common.handTool'),
+    pinch: {
+      zoom,
+      min: MIN_SCALE,
+      max: MAX_SCALE,
+      onChange: (next) => setZoom(Math.round(next * 100) / 100),
+    },
+  });
 
   const togglePan = () => {
     const next = !panEnabled;
@@ -952,13 +961,14 @@ function ImageSource({
       ) : null}
 
       <div
-        ref={pan.containerRef}
+        ref={gestures.containerRef}
         className={clsx(
           styles.scroll,
+          styles.pinchSurface,
           panEnabled && styles.panSurface,
-          panEnabled && pan.panning && styles.panSurfaceActive,
+          panEnabled && gestures.panning && styles.panSurfaceActive,
         )}
-        {...pan.surfaceProps}
+        {...gestures.surfaceProps}
       >
         {url ? (
           <div className={styles.imageStage} style={{ width: `${zoom * 100}%` }}>

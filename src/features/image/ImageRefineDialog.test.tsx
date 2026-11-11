@@ -263,6 +263,28 @@ describe('ImageRefineDialog', () => {
     expect(viewport).not.toHaveAttribute('tabindex');
   });
 
+  it('pinch-zooms the refinement preview with two fingers', () => {
+    renderDialog();
+    const viewport = document.querySelector('[class*="compareViewport"]') as HTMLElement;
+    expect(screen.getByText('100%')).toBeInTheDocument();
+
+    fireEvent.pointerDown(viewport, { button: 0, pointerId: 1, clientX: 100, clientY: 200 });
+    fireEvent.pointerDown(viewport, { button: 0, pointerId: 2, clientX: 200, clientY: 200 });
+    fireEvent.pointerMove(viewport, { pointerId: 2, clientX: 300, clientY: 200 });
+    expect(screen.getByText('200%')).toBeInTheDocument();
+
+    fireEvent.pointerUp(viewport, { pointerId: 1 });
+    fireEvent.pointerUp(viewport, { pointerId: 2 });
+
+    // The pinch value is clamped to the studio's zoom limits.
+    fireEvent.pointerDown(viewport, { button: 0, pointerId: 3, clientX: 100, clientY: 200 });
+    fireEvent.pointerDown(viewport, { button: 0, pointerId: 4, clientX: 200, clientY: 200 });
+    fireEvent.pointerMove(viewport, { pointerId: 4, clientX: 900, clientY: 200 });
+    expect(screen.getByText('400%')).toBeInTheDocument();
+    fireEvent.pointerUp(viewport, { pointerId: 3 });
+    fireEvent.pointerUp(viewport, { pointerId: 4 });
+  });
+
   it('shows the local quality report after Analyze without changing settings', async () => {
     const user = userEvent.setup();
     renderDialog();
