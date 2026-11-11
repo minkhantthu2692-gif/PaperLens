@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearAiApiKey, loadAiApiKey, loadAiSettings, saveAiSettings } from './settings';
+import { addApiKey, getActiveApiKey } from './keys';
+import { loadAiSettings, saveAiSettings } from './settings';
 import { DEFAULT_AI_CACHE_SETTINGS, DEFAULT_AI_SETTINGS } from './types';
 
 beforeEach(() => {
@@ -26,30 +27,28 @@ describe('AI settings storage', () => {
     expect(loadAiSettings().cache).toEqual({ enabled: true, expiryDays: 90, maxEntries: 1 });
   });
 
-  it('keeps the API key in the session by default', () => {
-    saveAiSettings({ ...DEFAULT_AI_SETTINGS, model: 'test-model' }, 'session-key');
+  it('keeps keys in the session by default and persists them only when requested', () => {
+    saveAiSettings({ ...DEFAULT_AI_SETTINGS, model: 'test-model' });
+    addApiKey({ providerId: 'openai', label: 'Personal', key: 'session-key' }, false);
 
-    expect(loadAiApiKey()).toBe('session-key');
-    expect(localStorage.getItem('paperlens.ai.apiKey.remembered')).toBeNull();
-    expect(sessionStorage.getItem('paperlens.ai.apiKey.session')).toBe('session-key');
+    expect(getActiveApiKey('openai')?.key).toBe('session-key');
+    expect(localStorage.getItem('paperlens.ai.keys')).toBeNull();
+    expect(sessionStorage.getItem('paperlens.ai.keys.session')).toContain('session-key');
+
+    saveAiSettings({ ...DEFAULT_AI_SETTINGS, model: 'test-model', rememberKey: true });
+    expect(localStorage.getItem('paperlens.ai.keys')).toContain('session-key');
+
+    saveAiSettings({ ...DEFAULT_AI_SETTINGS, model: 'test-model', rememberKey: false });
+    expect(localStorage.getItem('paperlens.ai.keys')).toBeNull();
+    expect(getActiveApiKey('openai')?.key).toBe('session-key');
   });
 
-  it('stores the key persistently only when explicitly requested', () => {
-    saveAiSettings(
-      { ...DEFAULT_AI_SETTINGS, model: 'test-model', rememberKey: true },
-      'remembered-key',
-    );
+  it('migrates the legacy single-key storage into the key vault', () => {
+    localStorage.setItem('paperlens.ai.apiKey.remembered', 'remembered-key');
 
-    expect(loadAiApiKey()).toBe('remembered-key');
-    expect(localStorage.getItem('paperlens.ai.apiKey.remembered')).toBe('remembered-key');
-    expect(sessionStorage.getItem('paperlens.ai.apiKey.session')).toBeNull();
-  });
+    const settings = loadAiSettings();
 
-  it('clears both stored key locations', () => {
-    saveAiSettings({ ...DEFAULT_AI_SETTINGS, rememberKey: true }, 'remembered-key');
-    clearAiApiKey();
-
-    expect(loadAiApiKey()).toBe('');
+    expect(getActiveApiKey(settings.providerId)?.key).toBe('remembered-key');
     expect(localStorage.getItem('paperlens.ai.apiKey.remembered')).toBeNull();
     expect(sessionStorage.getItem('paperlens.ai.apiKey.session')).toBeNull();
   });

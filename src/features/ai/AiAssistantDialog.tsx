@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
 import { AiError, requestAi, type AiErrorCode } from '@/services/ai/client';
-import { loadAiApiKey, loadAiSettings } from '@/services/ai/settings';
+import { getActiveApiKey } from '@/services/ai/keys';
+import { loadAiSettings } from '@/services/ai/settings';
 import type { AiSettings, AiTaskId } from '@/services/ai/types';
 import { getAiAllowance, type AiUsageWarning } from '@/services/ai/usage';
 import styles from './AiAssistantDialog.module.css';
@@ -100,8 +101,9 @@ export function AiAssistantDialog({
       controllerRef.current?.abort();
       return;
     }
-    setSettings(loadAiSettings());
-    setApiKey(loadAiApiKey());
+    const loadedSettings = loadAiSettings();
+    setSettings(loadedSettings);
+    setApiKey(getActiveApiKey(loadedSettings.providerId)?.key ?? '');
     setTask('proofread');
     setTargetLanguage('English');
     setStatus('idle');

@@ -66,10 +66,12 @@ product specification.
   proxied. Results are not stored unless the optional exact-match cache is enabled.
 - AI settings for OpenAI, Google Gemini, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, xAI,
   Together AI, and custom OpenAI-compatible endpoints, including model discovery with manual
-  entry as a fallback.
+  entry as a fallback. Multiple API keys can be stored per provider with a labeled active key,
+  so switching accounts does not require deleting the previous key.
 - Explicit AI guardrails: input character cap, output token cap, timeout, bounded retries,
-  concurrency limit, daily/monthly request limits, warning threshold, per-session key storage
-  with opt-in remember, and clearable usage counters. Provider-side quota cannot be inspected.
+  concurrency limit, daily/monthly request limits, warning threshold, labeled per-provider key
+  storage with opt-in remember, and clearable usage counters. Provider-side quota cannot be
+  inspected.
 - Optional exact-match AI cache, disabled by default. A repeat of the same normalized text,
   action, target language, provider, model, and output limit returns the saved result with a
   cache indicator and no provider request. Entries expire after 1-90 days, are capped at

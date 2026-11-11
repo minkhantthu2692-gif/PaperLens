@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import i18n from '@/i18n';
 import { AiError } from '@/services/ai/client';
+import { addApiKey } from '@/services/ai/keys';
 import { saveAiSettings } from '@/services/ai/settings';
 import { DEFAULT_AI_SETTINGS } from '@/services/ai/types';
 import { AiAssistantDialog } from './AiAssistantDialog';
@@ -55,10 +56,8 @@ describe('AiAssistantDialog', () => {
   it('sends the selected text and replaces the selection with the result', async () => {
     const user = userEvent.setup();
     const onApply = vi.fn();
-    saveAiSettings(
-      { ...DEFAULT_AI_SETTINGS, providerId: 'openai', model: 'test-model' },
-      'test-key',
-    );
+    saveAiSettings({ ...DEFAULT_AI_SETTINGS, providerId: 'openai', model: 'test-model' });
+    addApiKey({ providerId: 'openai', label: 'Test', key: 'test-key' }, false);
     aiMocks.requestAi.mockResolvedValue({
       text: 'Improved text',
       providerId: 'openai',
@@ -97,15 +96,13 @@ describe('AiAssistantDialog', () => {
 
   it('blocks selected text above the configured input limit', async () => {
     const user = userEvent.setup();
-    saveAiSettings(
-      {
-        ...DEFAULT_AI_SETTINGS,
-        providerId: 'openai',
-        model: 'test-model',
-        guardrails: { ...DEFAULT_AI_SETTINGS.guardrails, maxInputChars: 500 },
-      },
-      'test-key',
-    );
+    saveAiSettings({
+      ...DEFAULT_AI_SETTINGS,
+      providerId: 'openai',
+      model: 'test-model',
+      guardrails: { ...DEFAULT_AI_SETTINGS.guardrails, maxInputChars: 500 },
+    });
+    addApiKey({ providerId: 'openai', label: 'Test', key: 'test-key' }, false);
 
     renderDialog('a'.repeat(600));
 
@@ -117,10 +114,8 @@ describe('AiAssistantDialog', () => {
 
   it('surfaces provider errors and allows retrying', async () => {
     const user = userEvent.setup();
-    saveAiSettings(
-      { ...DEFAULT_AI_SETTINGS, providerId: 'openai', model: 'test-model' },
-      'test-key',
-    );
+    saveAiSettings({ ...DEFAULT_AI_SETTINGS, providerId: 'openai', model: 'test-model' });
+    addApiKey({ providerId: 'openai', label: 'Test', key: 'test-key' }, false);
     aiMocks.requestAi.mockRejectedValue(new AiError('auth'));
 
     renderDialog('Selected paragraph');

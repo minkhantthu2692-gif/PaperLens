@@ -1,3 +1,4 @@
+import { migrateLegacyApiKey, syncApiKeyStorage } from './keys';
 import {
   DEFAULT_AI_CACHE_SETTINGS,
   DEFAULT_AI_GUARDRAILS,
@@ -9,30 +10,12 @@ import {
 } from './types';
 
 const SETTINGS_STORAGE_KEY = 'paperlens.ai.settings';
-const SESSION_KEY_STORAGE_KEY = 'paperlens.ai.apiKey.session';
-const REMEMBERED_KEY_STORAGE_KEY = 'paperlens.ai.apiKey.remembered';
-
-function readStorage(storage: Storage, key: string): string | null {
-  try {
-    return storage.getItem(key);
-  } catch {
-    return null;
-  }
-}
 
 function writeStorage(storage: Storage, key: string, value: string): void {
   try {
     storage.setItem(key, value);
   } catch {
     // The value applies for this session even when persistence is unavailable.
-  }
-}
-
-function removeStorage(storage: Storage, key: string): void {
-  try {
-    storage.removeItem(key);
-  } catch {
-    // Nothing else to do when storage is unavailable.
   }
 }
 
@@ -125,44 +108,18 @@ function defaultSettings(): AiSettings {
 }
 
 export function loadAiSettings(): AiSettings {
+  let settings: AiSettings;
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) {
-      return defaultSettings();
-    }
-    return normalizeSettings(JSON.parse(raw));
+    settings = raw ? normalizeSettings(JSON.parse(raw)) : defaultSettings();
   } catch {
-    return defaultSettings();
+    settings = defaultSettings();
   }
+  migrateLegacyApiKey(settings.providerId);
+  return settings;
 }
 
-export function loadAiApiKey(): string {
-  const remembered = readStorage(localStorage, REMEMBERED_KEY_STORAGE_KEY);
-  if (remembered) {
-    return remembered;
-  }
-  return readStorage(sessionStorage, SESSION_KEY_STORAGE_KEY) ?? '';
-}
-
-export function saveAiSettings(settings: AiSettings, apiKey: string): void {
+export function saveAiSettings(settings: AiSettings): void {
   writeStorage(localStorage, SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-
-  const trimmedKey = apiKey.trim();
-  if (!trimmedKey) {
-    clearAiApiKey();
-    return;
-  }
-
-  if (settings.rememberKey) {
-    writeStorage(localStorage, REMEMBERED_KEY_STORAGE_KEY, trimmedKey);
-    removeStorage(sessionStorage, SESSION_KEY_STORAGE_KEY);
-  } else {
-    writeStorage(sessionStorage, SESSION_KEY_STORAGE_KEY, trimmedKey);
-    removeStorage(localStorage, REMEMBERED_KEY_STORAGE_KEY);
-  }
-}
-
-export function clearAiApiKey(): void {
-  removeStorage(sessionStorage, SESSION_KEY_STORAGE_KEY);
-  removeStorage(localStorage, REMEMBERED_KEY_STORAGE_KEY);
+  syncApiKeyStorage(settings.rememberKey);
 }
