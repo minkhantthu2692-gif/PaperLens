@@ -163,6 +163,7 @@ export const en = {
     cancelled: 'The request was cancelled.',
     result: 'Suggested result',
     resultMeta: '{{count}} characters · review before replacing',
+    fromCache: 'From local cache',
     copy: 'Copy result',
     copied: 'Copied',
     copyFailed: 'The result could not be copied.',
@@ -280,6 +281,15 @@ export const en = {
     aiRememberKey: 'Remember the API key on this device',
     aiRememberKeyHint:
       'Stores the key in browser storage. Anyone with access to this browser profile may be able to read it.',
+    aiCache: 'Reuse identical AI results',
+    aiCacheHint:
+      'When enabled, an exact repeat of the same text, action, model, and provider returns the saved result without contacting the provider. The cache stays in this browser and is separate from your documents.',
+    aiCacheExpiry: 'Cache expiry (days)',
+    aiCacheMaxEntries: 'Maximum cached results',
+    aiCacheCount: 'Cached results: {{count}}',
+    aiCacheClear: 'Clear AI cache',
+    aiCacheCleared: 'The AI cache was cleared.',
+    aiCacheClearError: 'The AI cache could not be cleared.',
     aiSave: 'Save AI settings',
     aiSaved: 'AI settings saved.',
     aiKeyCleared: 'The stored API key was removed.',
@@ -335,7 +345,7 @@ export const en = {
     deleteAll: 'Delete all local data',
     deleteAllTitle: 'Delete all local data?',
     deleteAllDescription:
-      'This permanently removes every document, imported file, and editor draft from this browser. Download a backup first.',
+      'This permanently removes every document, imported file, editor draft, and cached AI result from this browser. Download a backup first.',
     deleteAllConfirm: 'Delete everything',
     deleted: 'All local data was deleted.',
     about: 'About PaperLens',

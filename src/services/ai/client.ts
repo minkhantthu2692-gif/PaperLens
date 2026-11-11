@@ -1,3 +1,4 @@
+import { buildAiCacheKey, readAiCache, writeAiCache } from './cache';
 import { buildChatRequest, parseChatResponse, resolveProviderBaseUrl } from './providers';
 import { buildAiPrompt } from './prompts';
 import { recordAiUsage, getAiAllowance } from './usage';
@@ -171,6 +172,34 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     throw new AiError('input-too-large');
   }
 
+  const cacheKey = settings.cache.enabled
+    ? buildAiCacheKey({
+        settings,
+        task,
+        text: inputText,
+        ...(targetLanguage ? { targetLanguage } : {}),
+      })
+    : null;
+
+  if (cacheKey) {
+    try {
+      const cached = await readAiCache(cacheKey);
+      if (cached) {
+        return {
+          text: cached.result,
+          providerId: settings.providerId,
+          model: cached.model,
+          retries: 0,
+          inputChars: cached.inputChars,
+          outputChars: cached.outputChars,
+          cached: true,
+        };
+      }
+    } catch {
+      // A cache failure must not block a live request.
+    }
+  }
+
   const allowance = getAiAllowance(guardrails);
   if (allowance.blocked) {
     throw new AiError(allowance.blocked);
@@ -202,14 +231,37 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
           ...(signal ? { signal } : {}),
           providerId: settings.providerId,
         });
-        recordAiUsage(inputText.length, response.text.length);
+        const resultText = response.text.trim();
+        recordAiUsage(inputText.length, resultText.length);
+        if (cacheKey) {
+          const createdAt = Date.now();
+          try {
+            await writeAiCache(
+              {
+                key: cacheKey,
+                createdAt,
+                expiresAt: createdAt + settings.cache.expiryDays * 86_400_000,
+                providerId: settings.providerId,
+                model,
+                task,
+                result: resultText,
+                inputChars: inputText.length,
+                outputChars: resultText.length,
+              },
+              settings.cache,
+            );
+          } catch {
+            // Caching is best-effort; the live result is still returned.
+          }
+        }
         return {
-          text: response.text.trim(),
+          text: resultText,
           providerId: settings.providerId,
           model,
           retries,
           inputChars: inputText.length,
-          outputChars: response.text.length,
+          outputChars: resultText.length,
+          cached: false,
         };
       } catch (error) {
         const aiError = error instanceof AiError ? error : new AiError('unknown');

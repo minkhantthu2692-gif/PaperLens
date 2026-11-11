@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from '@/app/theme/ThemeProvider';
+import { registerServiceWorker } from '@/services/pwa/registerServiceWorker';
 import '@/i18n';
 import '@/styles/base.css';
 import App from '@/App';
@@ -18,3 +19,5 @@ createRoot(rootElement).render(
     </ThemeProvider>
   </StrictMode>,
 );
+
+registerServiceWorker();

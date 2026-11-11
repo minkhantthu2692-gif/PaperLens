@@ -28,12 +28,19 @@ export interface AiGuardrails {
   warningThreshold: number;
 }
 
+export interface AiCacheSettings {
+  enabled: boolean;
+  expiryDays: number;
+  maxEntries: number;
+}
+
 export interface AiSettings {
   providerId: AiProviderId;
   model: string;
   customBaseUrl: string;
   rememberKey: boolean;
   guardrails: AiGuardrails;
+  cache: AiCacheSettings;
 }
 
 export interface AiRequestOptions {
@@ -52,6 +59,7 @@ export interface AiResponse {
   retries: number;
   inputChars: number;
   outputChars: number;
+  cached: boolean;
 }
 
 export const DEFAULT_AI_GUARDRAILS: AiGuardrails = {
@@ -65,12 +73,19 @@ export const DEFAULT_AI_GUARDRAILS: AiGuardrails = {
   warningThreshold: 80,
 };
 
+export const DEFAULT_AI_CACHE_SETTINGS: AiCacheSettings = {
+  enabled: false,
+  expiryDays: 7,
+  maxEntries: 50,
+};
+
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   providerId: 'openai',
   model: '',
   customBaseUrl: '',
   rememberKey: false,
   guardrails: DEFAULT_AI_GUARDRAILS,
+  cache: DEFAULT_AI_CACHE_SETTINGS,
 };
 
 export function isAiProviderId(value: string | null | undefined): value is AiProviderId {

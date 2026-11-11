@@ -5,13 +5,14 @@ output into clean, editable documents. Documents are processed and stored on you
 default. AI assistance is optional, bring-your-own-key, and never required for the core
 workflow.
 
-> Status: **Phase 4 — optional BYOK AI assistance and guardrails**. The app imports PDF, image,
-> and text files into IndexedDB, runs local OCR with bundled English/Burmese models or verified
-> optional packs, offers previewable offline text cleanup, supports source viewing, rich-text
-> editing, TXT/HTML/PDF (print) export, and backup/restore. Selected-text AI actions now support
-> ten provider options, dynamic model discovery, explicit key handling, and user-configured
-> usage limits. Representative scan-quality testing, DOCX export, the optional exact-match AI
-> cache, and the installable PWA/service worker remain future work.
+> Status: **Phase 5 — optional AI cache, PWA installation, and polish**. The app imports PDF,
+> image, and text files into IndexedDB, runs local OCR with bundled English/Burmese models or
+> verified optional packs, offers previewable offline text cleanup, supports source viewing,
+> rich-text editing, TXT/HTML/PDF (print) export, and backup/restore. Selected-text AI actions
+> support ten provider options, dynamic model discovery, explicit key handling,
+> user-configured usage limits, and an opt-in exact-match result cache. A service worker and
+> web app manifest make the production build installable and available offline. Representative
+> scan-quality testing and DOCX export remain future work.
 
 ## Product rules
 
@@ -61,15 +62,23 @@ product specification.
 - Optional selected-text AI assistance with a floating editor action: proofread, rewrite,
   summarize, translate, or clean OCR text, with result preview, copy, and intentional
   replace. Requests go directly from the browser to the configured provider; nothing is
-  proxied or stored by the app.
+  proxied. Results are not stored unless the optional exact-match cache is enabled.
 - AI settings for OpenAI, Google Gemini, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, xAI,
   Together AI, and custom OpenAI-compatible endpoints, including model discovery with manual
   entry as a fallback.
 - Explicit AI guardrails: input character cap, output token cap, timeout, bounded retries,
   concurrency limit, daily/monthly request limits, warning threshold, per-session key storage
   with opt-in remember, and clearable usage counters. Provider-side quota cannot be inspected.
+- Optional exact-match AI cache, disabled by default. A repeat of the same normalized text,
+  action, target language, provider, model, and output limit returns the saved result with a
+  cache indicator and no provider request. Entries expire after 1-90 days, are capped at
+  1-500 results, and can be cleared independently in Settings. The cache lives in IndexedDB,
+  is excluded from backups, and is separate from document storage.
 - Export to plain text, standalone HTML, or PDF through the browser print dialog.
 - Versioned JSON backup and restore, storage-usage display, and delete-all-local-data controls.
+- Installable PWA with a web app manifest and service worker. The production build caches the
+  app shell and same-origin static assets for offline startup; cross-origin AI requests are
+  never cached by the service worker.
 - English and Burmese UI, light/dark/system themes, offline status indicator.
 
 Current limitations: PDF text selection is approximate. OCR accuracy varies with scan quality
@@ -78,8 +87,10 @@ environment. Optional packs come from a curated list and are checksum-verified, 
 checksums and pinned revision must be updated manually. Cleanup tools are conservative
 heuristics, not AI, and may still need manual review. AI actions are limited to selected text,
 depend on provider CORS/browser support, and cannot enforce provider-side quotas or billing.
-DOCX export, direct PDF file generation, the exact-match AI cache, and installable PWA behavior
-are not implemented yet. Browser storage can be cleared or evicted, so keep backups.
+DOCX export and direct PDF file generation are not implemented yet. The service worker does
+not add background sync or push notifications, and PWA behavior still needs verification on
+representative mobile browsers. Browser storage and caches can be cleared or evicted, so keep
+backups.
 
 ## Getting started
 
@@ -151,8 +162,10 @@ The app is a static SPA with no required server functions. The build output is `
 `VITE_BASE_PATH` controls the public base path (default `/`), required for sub-path
 deployments such as GitHub Pages (`/PaperLens/`). Because routing is client-side, configure an
 SPA fallback to `index.html`: on Vercel add a rewrite, on Cloudflare Pages enable single-page
-app handling, and on GitHub Pages publish a `404.html` copy of `index.html`. Service-worker
-and PWA install support are added in a later phase.
+app handling, and on GitHub Pages publish a `404.html` copy of `index.html`. The production
+build registers `sw.js` and exposes `manifest.webmanifest`; both respect `VITE_BASE_PATH`.
+Service workers require HTTPS (or localhost), so test installation against a deployed build or
+`npm run preview` rather than the plain development server.
 
 ## Privacy and security
 
@@ -165,7 +178,9 @@ and PWA install support are added in a later phase.
   `tessdata_fast` revision in a user-initiated request.
 - AI requests are user-initiated and send only the selected text directly to the configured
   provider. Keys stay in session storage by default; remember-key is opt-in and stores the key
-  in browser storage. Keys and document text are never logged, backed up, or proxied.
+  in browser storage. Keys and document text are never logged, backed up, or proxied. If the
+  exact-match AI cache is enabled, the normalized selected text and result are stored locally
+  in IndexedDB until they expire or you clear the cache.
 - No telemetry or analytics are included.
 
 ## License

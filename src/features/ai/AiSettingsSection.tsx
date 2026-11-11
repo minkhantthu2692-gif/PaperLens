@@ -1,8 +1,9 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Eye, EyeOff, KeyRound, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import formStyles from '@/components/ui/Form.module.css';
+import { clearAiCache, getAiCacheCount } from '@/services/ai/cache';
 import { AI_PROVIDERS, fetchProviderModels, getProviderDefinition } from '@/services/ai/providers';
 import {
   loadAiApiKey,
@@ -10,7 +11,7 @@ import {
   saveAiSettings,
   clearAiApiKey,
 } from '@/services/ai/settings';
-import type { AiGuardrails, AiProviderId, AiSettings } from '@/services/ai/types';
+import type { AiCacheSettings, AiGuardrails, AiProviderId, AiSettings } from '@/services/ai/types';
 import { getAiUsageSummary, resetAiUsage } from '@/services/ai/usage';
 import styles from './AiSettingsSection.module.css';
 
@@ -43,13 +44,37 @@ export function AiSettingsSection() {
   const [modelsState, setModelsState] = useState<ModelsState>('idle');
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [usage, setUsage] = useState(getAiUsageSummary);
+  const [cacheCount, setCacheCount] = useState(0);
 
   const provider = getProviderDefinition(settings.providerId);
+
+  useEffect(() => {
+    let active = true;
+    getAiCacheCount()
+      .then((count) => {
+        if (active) {
+          setCacheCount(count);
+        }
+      })
+      .catch(() => {
+        // The cache may be unavailable in private browsing modes.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const updateGuardrail = (key: keyof AiGuardrails, value: number) => {
     setSettings((current) => ({
       ...current,
       guardrails: { ...current.guardrails, [key]: value },
+    }));
+  };
+
+  const updateCache = (key: keyof AiCacheSettings, value: boolean | number) => {
+    setSettings((current) => ({
+      ...current,
+      cache: { ...current.cache, [key]: value },
     }));
   };
 
@@ -100,6 +125,16 @@ export function AiSettingsSection() {
     resetAiUsage();
     setUsage(getAiUsageSummary());
     setFeedback({ type: 'success', text: t('settings.aiUsageReset') });
+  };
+
+  const handleClearCache = async () => {
+    try {
+      await clearAiCache();
+      setCacheCount(0);
+      setFeedback({ type: 'success', text: t('settings.aiCacheCleared') });
+    } catch {
+      setFeedback({ type: 'error', text: t('settings.aiCacheClearError') });
+    }
   };
 
   return (
@@ -247,6 +282,74 @@ export function AiSettingsSection() {
           <span className={styles.hint}>{t('settings.aiRememberKeyHint')}</span>
         </span>
       </label>
+
+      <label className={styles.checkbox}>
+        <input
+          type="checkbox"
+          checked={settings.cache.enabled}
+          onChange={(event) => updateCache('enabled', event.target.checked)}
+        />
+        <span className={styles.checkboxText}>
+          <span className={styles.checkboxLabel}>{t('settings.aiCache')}</span>
+          <span className={styles.hint}>{t('settings.aiCacheHint')}</span>
+        </span>
+      </label>
+
+      {settings.cache.enabled ? (
+        <div className={styles.grid}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ai-cache-expiry">
+              {t('settings.aiCacheExpiry')}
+            </label>
+            <input
+              id="ai-cache-expiry"
+              className={formStyles.input}
+              type="number"
+              min={1}
+              max={90}
+              value={settings.cache.expiryDays}
+              onChange={(event) => {
+                const number = Number(event.target.value);
+                if (Number.isFinite(number)) {
+                  updateCache('expiryDays', number);
+                }
+              }}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ai-cache-max">
+              {t('settings.aiCacheMaxEntries')}
+            </label>
+            <input
+              id="ai-cache-max"
+              className={formStyles.input}
+              type="number"
+              min={1}
+              max={500}
+              value={settings.cache.maxEntries}
+              onChange={(event) => {
+                const number = Number(event.target.value);
+                if (Number.isFinite(number)) {
+                  updateCache('maxEntries', number);
+                }
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div className={styles.usageRow}>
+        <span className={styles.usage}>{t('settings.aiCacheCount', { count: cacheCount })}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => void handleClearCache()}
+          disabled={cacheCount === 0}
+        >
+          <Trash2 size={15} aria-hidden="true" />
+          {t('settings.aiCacheClear')}
+        </Button>
+      </div>
 
       <details className={styles.advanced}>
         <summary className={styles.summary}>{t('settings.aiAdvanced')}</summary>

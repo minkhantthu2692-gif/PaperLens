@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as CacheModule from './cache';
+import { readAiCache, writeAiCache } from './cache';
 import { AiError, requestAi, resetAiRuntimeState } from './client';
 import { DEFAULT_AI_SETTINGS, type AiSettings } from './types';
 import { recordAiUsage } from './usage';
+
+vi.mock('./cache', async (importOriginal) => {
+  const actual = await importOriginal<typeof CacheModule>();
+  return {
+    ...actual,
+    readAiCache: vi.fn(),
+    writeAiCache: vi.fn(),
+  };
+});
 
 function settingsWith(overrides: Partial<AiSettings> = {}): AiSettings {
   return {
@@ -25,6 +36,8 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   resetAiRuntimeState();
+  vi.mocked(readAiCache).mockResolvedValue(undefined);
+  vi.mocked(writeAiCache).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -152,6 +165,67 @@ describe('requestAi guardrails', () => {
       }),
     ).rejects.toMatchObject({ code: 'daily-limit' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns an exact cached result without contacting the provider', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(readAiCache).mockResolvedValue({
+      key: 'cached-key',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
+      providerId: 'openai',
+      model: 'test-model',
+      task: 'proofread',
+      result: 'Cached result',
+      inputChars: 4,
+      outputChars: 13,
+    });
+
+    const result = await requestAi({
+      settings: settingsWith({
+        cache: { ...DEFAULT_AI_SETTINGS.cache, enabled: true },
+      }),
+      apiKey: 'test-key',
+      task: 'proofread',
+      text: 'Text',
+    });
+
+    expect(result).toMatchObject({ text: 'Cached result', cached: true, retries: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(writeAiCache).not.toHaveBeenCalled();
+  });
+
+  it('stores a successful result when caching is enabled', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { choices: [{ message: { content: ' Clean result ' } }] }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await requestAi({
+      settings: settingsWith({
+        cache: { ...DEFAULT_AI_SETTINGS.cache, enabled: true, expiryDays: 3 },
+      }),
+      apiKey: 'test-key',
+      task: 'proofread',
+      text: 'Text',
+    });
+
+    expect(result).toMatchObject({ text: 'Clean result', cached: false });
+    expect(writeAiCache).toHaveBeenCalledTimes(1);
+    const [record, config] = vi.mocked(writeAiCache).mock.calls[0] ?? [];
+    expect(record).toMatchObject({
+      result: 'Clean result',
+      providerId: 'openai',
+      model: 'test-model',
+      task: 'proofread',
+      inputChars: 4,
+      outputChars: 12,
+    });
+    expect(record?.expiresAt).toBe((record?.createdAt ?? 0) + 3 * 86_400_000);
+    expect(config).toMatchObject({ enabled: true, expiryDays: 3 });
   });
 
   it('rejects requests while offline', async () => {

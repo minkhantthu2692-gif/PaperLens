@@ -88,6 +88,7 @@ export function AiAssistantDialog({
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<ErrorState | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [cached, setCached] = useState(false);
   const [warning, setWarning] = useState<AiUsageWarning | null>(null);
   const [warningConfirmed, setWarningConfirmed] = useState(false);
   const [copied, setCopied] = useState<'idle' | 'done' | 'error'>('idle');
@@ -106,6 +107,7 @@ export function AiAssistantDialog({
     setStatus('idle');
     setError(null);
     setResult(null);
+    setCached(false);
     setWarning(null);
     setWarningConfirmed(false);
     setCopied('idle');
@@ -138,6 +140,7 @@ export function AiAssistantDialog({
     setStatus('running');
     setError(null);
     setResult(null);
+    setCached(false);
     setWarning(null);
     setCopied('idle');
 
@@ -154,6 +157,7 @@ export function AiAssistantDialog({
         return;
       }
       setResult(response.text);
+      setCached(response.cached);
       setStatus('done');
     } catch (requestError) {
       if (requestError instanceof AiError && requestError.code === 'cancelled') {
@@ -184,11 +188,11 @@ export function AiAssistantDialog({
       return;
     }
     const allowance = getAiAllowance(settings.guardrails);
-    if (allowance.blocked) {
+    if (allowance.blocked && !settings.cache.enabled) {
       setError(allowance.blocked);
       return;
     }
-    if (allowance.warning && !warningConfirmed) {
+    if (allowance.warning && !allowance.blocked && !warningConfirmed) {
       setWarning(allowance.warning);
       setWarningConfirmed(true);
       return;
@@ -360,6 +364,7 @@ export function AiAssistantDialog({
             <div className={styles.resultHeader}>
               <span className={styles.resultTitle}>{t('assistant.result')}</span>
               <span className={styles.resultMeta}>
+                {cached ? `${t('assistant.fromCache')} · ` : ''}
                 {t('assistant.resultMeta', { count: result.length })}
               </span>
             </div>

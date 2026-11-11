@@ -1,5 +1,7 @@
 import type { AiTaskId } from './types';
 
+export const AI_PROMPT_VERSION = 1;
+
 export interface AiPrompt {
   system: string;
   user: string;

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearAiApiKey, loadAiApiKey, loadAiSettings, saveAiSettings } from './settings';
-import { DEFAULT_AI_SETTINGS } from './types';
+import { DEFAULT_AI_CACHE_SETTINGS, DEFAULT_AI_SETTINGS } from './types';
 
 beforeEach(() => {
   localStorage.clear();
@@ -14,6 +14,16 @@ describe('AI settings storage', () => {
     expect(loadAiSettings().guardrails.maxInputChars).toBe(
       DEFAULT_AI_SETTINGS.guardrails.maxInputChars,
     );
+  });
+
+  it('disables caching by default and clamps stored cache settings', () => {
+    expect(loadAiSettings().cache).toEqual(DEFAULT_AI_CACHE_SETTINGS);
+
+    localStorage.setItem(
+      'paperlens.ai.settings',
+      JSON.stringify({ cache: { enabled: true, expiryDays: 1000, maxEntries: 0 } }),
+    );
+    expect(loadAiSettings().cache).toEqual({ enabled: true, expiryDays: 90, maxEntries: 1 });
   });
 
   it('keeps the API key in the session by default', () => {

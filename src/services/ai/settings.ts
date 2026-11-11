@@ -1,7 +1,9 @@
 import {
+  DEFAULT_AI_CACHE_SETTINGS,
   DEFAULT_AI_GUARDRAILS,
   DEFAULT_AI_SETTINGS,
   isAiProviderId,
+  type AiCacheSettings,
   type AiGuardrails,
   type AiSettings,
 } from './types';
@@ -82,6 +84,16 @@ function normalizeGuardrails(value: unknown): AiGuardrails {
   };
 }
 
+function normalizeCacheSettings(value: unknown): AiCacheSettings {
+  const record =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  return {
+    enabled: record['enabled'] === true,
+    expiryDays: clampNumber(record['expiryDays'], 1, 90, DEFAULT_AI_CACHE_SETTINGS.expiryDays),
+    maxEntries: clampNumber(record['maxEntries'], 1, 500, DEFAULT_AI_CACHE_SETTINGS.maxEntries),
+  };
+}
+
 function normalizeSettings(value: unknown): AiSettings {
   const record =
     typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
@@ -100,6 +112,15 @@ function normalizeSettings(value: unknown): AiSettings {
     customBaseUrl,
     rememberKey,
     guardrails: normalizeGuardrails(record['guardrails']),
+    cache: normalizeCacheSettings(record['cache']),
+  };
+}
+
+function defaultSettings(): AiSettings {
+  return {
+    ...DEFAULT_AI_SETTINGS,
+    guardrails: { ...DEFAULT_AI_GUARDRAILS },
+    cache: { ...DEFAULT_AI_CACHE_SETTINGS },
   };
 }
 
@@ -107,11 +128,11 @@ export function loadAiSettings(): AiSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) {
-      return { ...DEFAULT_AI_SETTINGS, guardrails: { ...DEFAULT_AI_GUARDRAILS } };
+      return defaultSettings();
     }
     return normalizeSettings(JSON.parse(raw));
   } catch {
-    return { ...DEFAULT_AI_SETTINGS, guardrails: { ...DEFAULT_AI_GUARDRAILS } };
+    return defaultSettings();
   }
 }
 
