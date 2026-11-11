@@ -109,8 +109,98 @@
   margin-top: 0.2rem;
 }
 
+.packList {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.packRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.packInfo {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.packName {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.packName svg {
+  flex: none;
+  color: var(--color-text-tertiary);
+}
+
+.packEnglish {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+.packMeta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.packActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.packProgress {
+  width: 8rem;
+  height: 0.5rem;
+  accent-color: var(--color-accent);
+}
+
+.packProgressText {
+  min-width: 2.5rem;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.packInstalled {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-success);
+}
+
+.packError {
+  grid-column: 1 / -1;
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+}
+
 @media (max-width: 40rem) {
   .content {
     padding: var(--space-4);
+  }
+
+  .packRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .packActions {
+    justify-content: flex-start;
   }
 }

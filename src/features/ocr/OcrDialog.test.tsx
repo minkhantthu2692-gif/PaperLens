@@ -1,10 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import i18n from '@/i18n';
 import type { SourceAsset } from '@/domain/document';
 import { createOcrSession } from '@/services/ocr/ocrEngine';
+import { listInstalledLanguageCodes } from '@/services/ocr/languagePacks';
 import { OcrDialog } from './OcrDialog';
 
 const ocrMocks = vi.hoisted(() => ({
@@ -13,8 +15,13 @@ const ocrMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/ocr/ocrEngine', () => ({
-  isOcrLanguage: (value: unknown) => value === 'eng' || value === 'mya' || value === 'eng+mya',
+  isValidLanguageExpression: (value: string) => /^[a-z0-9_]+$/i.test(value),
   createOcrSession: vi.fn(),
+}));
+
+vi.mock('@/services/ocr/languagePacks', () => ({
+  getOptionalLanguagePack: () => undefined,
+  listInstalledLanguageCodes: vi.fn(),
 }));
 
 const asset: SourceAsset = {
@@ -28,18 +35,21 @@ const asset: SourceAsset = {
 
 function renderDialog(onInsert = vi.fn(), onClose = vi.fn()) {
   return render(
-    <OcrDialog
-      target={{ kind: 'image' }}
-      sourceAsset={asset}
-      onClose={onClose}
-      onInsert={onInsert}
-    />,
+    <MemoryRouter>
+      <OcrDialog
+        target={{ kind: 'image' }}
+        sourceAsset={asset}
+        onClose={onClose}
+        onInsert={onInsert}
+      />
+    </MemoryRouter>,
   );
 }
 
 beforeEach(async () => {
   ocrMocks.recognize.mockReset();
   ocrMocks.terminate.mockResolvedValue(undefined);
+  vi.mocked(listInstalledLanguageCodes).mockResolvedValue(new Set());
   vi.mocked(createOcrSession).mockResolvedValue({
     recognize: ocrMocks.recognize,
     terminate: ocrMocks.terminate,

@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, Clipboard, ScanText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import type { SourceAsset } from '@/domain/document';
 import {
   createOcrSession,
-  isOcrLanguage,
-  type OcrLanguageId,
+  isValidLanguageExpression,
   type OcrSession,
 } from '@/services/ocr/ocrEngine';
+import { getOptionalLanguagePack, listInstalledLanguageCodes } from '@/services/ocr/languagePacks';
 import { combineOcrPages, reconstructOcrText } from '@/services/ocr/ocrText';
 import { openPdfRenderer, type PdfPageRenderer } from '@/services/ocr/pdfRenderer';
 import styles from './OcrDialog.module.css';
@@ -29,13 +30,19 @@ interface OcrDialogProps {
 
 const LANGUAGE_STORAGE_KEY = 'paperlens.ocr.language';
 
-function readOcrLanguage(): OcrLanguageId {
+function readOcrLanguages(): string[] {
   try {
     const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return isOcrLanguage(stored) ? stored : 'eng';
+    if (stored) {
+      const codes = stored.split('+').filter((code) => code && isValidLanguageExpression(code));
+      if (codes.length > 0) {
+        return codes;
+      }
+    }
   } catch {
-    return 'eng';
+    // Fall back to English.
   }
+  return ['eng'];
 }
 
 export function OcrDialog({
@@ -46,7 +53,8 @@ export function OcrDialog({
   onInsert,
 }: OcrDialogProps) {
   const { t } = useTranslation();
-  const [language, setLanguage] = useState<OcrLanguageId>(readOcrLanguage);
+  const [languages, setLanguages] = useState<string[]>(readOcrLanguages);
+  const [installedCodes, setInstalledCodes] = useState<Set<string>>(new Set());
   const [scope, setScope] = useState<'current' | 'all'>('current');
   const [status, setStatus] = useState<OcrStatus>('idle');
   const [progress, setProgress] = useState(0);
@@ -66,6 +74,33 @@ export function OcrDialog({
     setError(null);
     setCopied(false);
     setScope('current');
+  }, [target]);
+
+  useEffect(() => {
+    if (!target) {
+      return;
+    }
+    let cancelled = false;
+    void listInstalledLanguageCodes()
+      .then((codes) => {
+        if (cancelled) {
+          return;
+        }
+        setInstalledCodes(codes);
+        setLanguages((current) => {
+          const available = new Set(['eng', 'mya', ...codes]);
+          const filtered = current.filter((code) => available.has(code));
+          return filtered.length > 0 ? filtered : ['eng'];
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInstalledCodes(new Set());
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [target]);
 
   useEffect(() => {
@@ -117,7 +152,7 @@ export function OcrDialog({
   }, [onClose]);
 
   const startOcr = async () => {
-    if (!target || status === 'running') {
+    if (!target || status === 'running' || languages.length === 0) {
       return;
     }
     if (target.kind !== 'region' && !sourceAsset) {
@@ -159,7 +194,7 @@ export function OcrDialog({
         return;
       }
 
-      session = await createOcrSession(language);
+      session = await createOcrSession(languages.join('+'));
       workerRef.current = session;
       if (cancelledRef.current) {
         return;
@@ -225,6 +260,35 @@ export function OcrDialog({
   const isPdf = target?.kind === 'pdf';
   const percent = Math.round(progress * 100);
 
+  const optionalPacks = [...installedCodes]
+    .map((code) => getOptionalLanguagePack(code))
+    .filter((pack): pack is NonNullable<typeof pack> => Boolean(pack))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const languageOptions = [
+    { code: 'eng', label: t('ocr.languageEnglish') },
+    { code: 'mya', label: t('ocr.languageBurmese') },
+    ...optionalPacks.map((pack) => ({
+      code: pack.code,
+      label: `${pack.nativeName} (${pack.name})`,
+    })),
+  ];
+
+  const toggleLanguage = (code: string, checked: boolean) => {
+    const next = checked
+      ? languages.includes(code)
+        ? languages
+        : [...languages, code]
+      : languages.filter((value) => value !== code);
+    setLanguages(next);
+    resetOutput();
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, next.join('+'));
+    } catch {
+      // The language still applies for this session.
+    }
+  };
+
   const footer =
     status === 'running' ? (
       <Button variant="danger" onClick={cancelOcr}>
@@ -249,7 +313,7 @@ export function OcrDialog({
         <Button
           variant={result ? 'secondary' : 'primary'}
           onClick={() => void startOcr()}
-          disabled={!target || (target.kind !== 'region' && !sourceAsset)}
+          disabled={!target || languages.length === 0 || (target.kind !== 'region' && !sourceAsset)}
         >
           <ScanText size={16} aria-hidden="true" />
           {status === 'idle' ? t('ocr.start') : t('ocr.retry')}
@@ -268,33 +332,28 @@ export function OcrDialog({
       {target ? (
         <div className={styles.body}>
           <div className={styles.fields}>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="ocr-language">
-                {t('ocr.language')}
-              </label>
-              <select
-                id="ocr-language"
-                className={styles.select}
-                value={language}
-                disabled={status === 'running'}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (isOcrLanguage(value)) {
-                    setLanguage(value);
-                    resetOutput();
-                    try {
-                      localStorage.setItem(LANGUAGE_STORAGE_KEY, value);
-                    } catch {
-                      // The language still applies for this session.
-                    }
-                  }
-                }}
-              >
-                <option value="eng">{t('ocr.languageEnglish')}</option>
-                <option value="mya">{t('ocr.languageBurmese')}</option>
-                <option value="eng+mya">{t('ocr.languageBoth')}</option>
-              </select>
-            </div>
+            <fieldset className={styles.languageField}>
+              <legend className={styles.label}>{t('ocr.language')}</legend>
+              <div className={styles.languageList}>
+                {languageOptions.map((option) => (
+                  <label key={option.code} className={styles.languageOption}>
+                    <input
+                      type="checkbox"
+                      checked={languages.includes(option.code)}
+                      disabled={status === 'running'}
+                      onChange={(event) => toggleLanguage(option.code, event.target.checked)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+              <p className={styles.hint}>
+                {t('ocr.manageLanguages')}{' '}
+                <Link to="/settings" onClick={handleClose}>
+                  {t('ocr.openSettings')}
+                </Link>
+              </p>
+            </fieldset>
 
             {isPdf && (pdfPageCount ?? 1) > 1 ? (
               <div className={styles.field}>

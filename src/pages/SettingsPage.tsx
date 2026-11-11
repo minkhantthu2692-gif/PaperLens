@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Download, HardDrive, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { Download, HardDrive, Languages, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +10,16 @@ import { useTheme } from '@/app/theme/useTheme';
 import { isSupportedLanguage, type SupportedLanguage } from '@/i18n';
 import { downloadBlob } from '@/lib/file';
 import { formatBytes } from '@/lib/format';
+import {
+  installLanguagePack,
+  isAbortError,
+  LanguagePackError,
+  listInstalledLanguageCodes,
+  OPTIONAL_LANGUAGE_PACKS,
+  removeLanguagePack,
+  type LanguagePack,
+  type LanguagePackErrorCode,
+} from '@/services/ocr/languagePacks';
 import { BackupError, createBackup, restoreBackup } from '@/services/storage/backup';
 import { deleteAllLocalData, getStorageUsage } from '@/services/storage/documents';
 import styles from './SettingsPage.module.css';
@@ -21,6 +31,43 @@ const THEME_LABEL_KEYS = {
 } as const satisfies Record<ThemePreference, string>;
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
+
+type PackStatus = 'idle' | 'downloading' | 'installed' | 'error';
+
+interface PackState {
+  status: PackStatus;
+  progress: number;
+  error?: LanguagePackErrorCode;
+}
+
+type PackErrorKey =
+  | 'settings.packErrorNetwork'
+  | 'settings.packErrorHttp'
+  | 'settings.packErrorIntegrity'
+  | 'settings.packErrorUnsupported';
+
+function packErrorKey(code: LanguagePackErrorCode): PackErrorKey {
+  switch (code) {
+    case 'http':
+      return 'settings.packErrorHttp';
+    case 'integrity':
+      return 'settings.packErrorIntegrity';
+    case 'unsupported':
+      return 'settings.packErrorUnsupported';
+    default:
+      return 'settings.packErrorNetwork';
+  }
+}
+
+function initialPackStates(installed: Set<string>): Record<string, PackState> {
+  const states: Record<string, PackState> = {};
+  for (const pack of OPTIONAL_LANGUAGE_PACKS) {
+    states[pack.code] = installed.has(pack.code)
+      ? { status: 'installed', progress: 1 }
+      : { status: 'idle', progress: 0 };
+  }
+  return states;
+}
 
 type RestoreErrorKey =
   | 'settings.backupTooLarge'
@@ -50,6 +97,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [packStates, setPackStates] = useState<Record<string, PackState>>({});
+  const packControllers = useRef(new Map<string, AbortController>());
 
   const language: SupportedLanguage = isSupportedLanguage(i18n.resolvedLanguage)
     ? i18n.resolvedLanguage
@@ -66,6 +115,84 @@ export default function SettingsPage() {
   useEffect(() => {
     void refreshUsage();
   }, [refreshUsage]);
+
+  const updatePack = useCallback((code: string, next: PackState) => {
+    setPackStates((current) => ({ ...current, [code]: next }));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listInstalledLanguageCodes()
+      .then((installed) => {
+        if (!cancelled) {
+          setPackStates(initialPackStates(installed));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPackStates(initialPackStates(new Set()));
+        }
+      });
+
+    const controllers = packControllers.current;
+    return () => {
+      cancelled = true;
+      for (const controller of controllers.values()) {
+        controller.abort();
+      }
+      controllers.clear();
+    };
+  }, []);
+
+  const handleInstallPack = async (pack: LanguagePack) => {
+    const controller = new AbortController();
+    packControllers.current.set(pack.code, controller);
+    setFeedback(null);
+    updatePack(pack.code, { status: 'downloading', progress: 0 });
+
+    try {
+      await installLanguagePack(
+        pack,
+        (progress) => updatePack(pack.code, { status: 'downloading', progress }),
+        controller.signal,
+      );
+      updatePack(pack.code, { status: 'installed', progress: 1 });
+      setFeedback({
+        type: 'success',
+        text: t('settings.packInstalled', { language: pack.name }),
+      });
+      await refreshUsage();
+    } catch (error) {
+      if (isAbortError(error)) {
+        updatePack(pack.code, { status: 'idle', progress: 0 });
+      } else {
+        const code: LanguagePackErrorCode =
+          error instanceof LanguagePackError ? error.code : 'network';
+        updatePack(pack.code, { status: 'error', progress: 0, error: code });
+      }
+    } finally {
+      packControllers.current.delete(pack.code);
+    }
+  };
+
+  const handleCancelPack = (code: string) => {
+    packControllers.current.get(code)?.abort();
+  };
+
+  const handleRemovePack = async (pack: LanguagePack) => {
+    setFeedback(null);
+    try {
+      await removeLanguagePack(pack.code);
+      updatePack(pack.code, { status: 'idle', progress: 0 });
+      setFeedback({
+        type: 'success',
+        text: t('settings.packRemoved', { language: pack.name }),
+      });
+      await refreshUsage();
+    } catch {
+      setFeedback({ type: 'error', text: t('settings.packRemoveError') });
+    }
+  };
 
   const handleBackup = async () => {
     setBusy(true);
@@ -175,6 +302,71 @@ export default function SettingsPage() {
             </select>
           </div>
           <p className={styles.hint}>{t('settings.languageDescription')}</p>
+        </section>
+
+        <section className={styles.card} aria-labelledby="settings-language-packs">
+          <h2 id="settings-language-packs">{t('settings.languagePacks')}</h2>
+          <p className={styles.cardDescription}>{t('settings.languagePacksDescription')}</p>
+          <p className={styles.hint}>{t('settings.bundledPacks')}</p>
+
+          <ul className={styles.packList}>
+            {OPTIONAL_LANGUAGE_PACKS.map((pack) => {
+              const state = packStates[pack.code] ?? { status: 'idle', progress: 0 };
+              return (
+                <li key={pack.code} className={styles.packRow}>
+                  <div className={styles.packInfo}>
+                    <span className={styles.packName}>
+                      <Languages size={16} aria-hidden="true" />
+                      {pack.nativeName} <span className={styles.packEnglish}>({pack.name})</span>
+                    </span>
+                    <span className={styles.packMeta}>
+                      {formatBytes(pack.size)} · {t('settings.packLicense')}
+                    </span>
+                  </div>
+
+                  {state.status === 'downloading' ? (
+                    <div className={styles.packActions}>
+                      <progress
+                        className={styles.packProgress}
+                        value={Math.round(state.progress * 100)}
+                        max={100}
+                        aria-label={t('settings.packInstalling', { language: pack.name })}
+                      />
+                      <span className={styles.packProgressText}>
+                        {Math.round(state.progress * 100)}%
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={() => handleCancelPack(pack.code)}>
+                        {t('settings.cancelPack')}
+                      </Button>
+                    </div>
+                  ) : state.status === 'installed' ? (
+                    <div className={styles.packActions}>
+                      <span className={styles.packInstalled}>{t('settings.installed')}</span>
+                      <Button variant="ghost" size="sm" onClick={() => void handleRemovePack(pack)}>
+                        <Trash2 size={15} aria-hidden="true" />
+                        {t('settings.removePack')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handleInstallPack(pack)}
+                    >
+                      <Download size={15} aria-hidden="true" />
+                      {state.status === 'error' ? t('common.retry') : t('settings.installPack')}
+                    </Button>
+                  )}
+
+                  {state.status === 'error' && state.error ? (
+                    <p className={styles.packError} role="alert">
+                      {t(packErrorKey(state.error))}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
         </section>
 
         <section className={styles.card} aria-labelledby="settings-data">

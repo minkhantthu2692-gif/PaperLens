@@ -36,6 +36,7 @@
     "dompurify": "^3.4.17",
     "i18next": "^23.15.0",
     "idb": "^8.0.4",
+    "idb-keyval": "^6.3.0",
     "lucide-react": "^0.454.0",
     "pdfjs-dist": "^4.8.69",
     "react": "^18.3.1",

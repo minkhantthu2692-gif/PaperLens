@@ -5,12 +5,12 @@ output into clean, editable documents. Documents are processed and stored on you
 default. AI assistance is optional, bring-your-own-key, and never required for the core
 workflow.
 
-> Status: **Phase 3 in progress — OCR, deterministic cleanup, and reconstruction**. The app
+> Status: **Phase 3 — OCR, deterministic cleanup, and optional language packs**. The app
 > imports PDF, image, and text files into IndexedDB, runs local OCR with bundled English/Burmese
-> models, offers previewable offline text cleanup, supports source viewing, rich-text editing,
-> TXT/HTML/PDF (print) export, and backup/restore. Representative scan-quality testing, extra
-> language packs, AI assistance, DOCX export, and the installable PWA/service worker remain
-> future work.
+> models or verified optional packs, offers previewable offline text cleanup, supports source
+> viewing, rich-text editing, TXT/HTML/PDF (print) export, and backup/restore. Representative
+> scan-quality testing, AI assistance, DOCX export, and the installable PWA/service worker
+> remain future work.
 
 ## Product rules
 
@@ -25,17 +25,17 @@ product specification.
 
 ## Tech stack
 
-| Concern       | Choice                                              |
-| ------------- | --------------------------------------------------- |
-| UI            | React 18 + TypeScript (strict)                      |
-| Build         | Vite 5 (Node 18.18+ compatible)                     |
-| Styling       | CSS Modules + CSS custom properties (design tokens) |
-| i18n          | i18next + react-i18next (English, Burmese)          |
-| Persistence   | IndexedDB via `idb` (schema-versioned)              |
-| Editor        | Tiptap (rich text, local autosave)                  |
-| Source viewer | PDF.js (canvas, text layer, regions)                |
-| OCR           | Tesseract.js 7, worker-based, bundled EN/MY models  |
-| Tests         | Vitest + Testing Library + jsdom                    |
+| Concern       | Choice                                                       |
+| ------------- | ------------------------------------------------------------ |
+| UI            | React 18 + TypeScript (strict)                               |
+| Build         | Vite 5 (Node 18.18+ compatible)                              |
+| Styling       | CSS Modules + CSS custom properties (design tokens)          |
+| i18n          | i18next + react-i18next (English, Burmese)                   |
+| Persistence   | IndexedDB via `idb` (schema-versioned)                       |
+| Editor        | Tiptap (rich text, local autosave)                           |
+| Source viewer | PDF.js (canvas, text layer, regions)                         |
+| OCR           | Tesseract.js 7, worker-based, bundled EN/MY + verified packs |
+| Tests         | Vitest + Testing Library + jsdom                             |
 
 ## Current capabilities
 
@@ -46,8 +46,11 @@ product specification.
 - PDF viewing with page navigation, zoom, thumbnails, approximate text selection, page-text
   insertion, and drag-to-select region copy/download/OCR. Image zoom, region crop, and OCR.
 - Local OCR for the current PDF page, all pages, the full image, or a selected region, with
-  English, Burmese, or combined recognition, progress, cancellation, preview, and insert.
-  Runtime assets and language models are bundled; no upload or account is required.
+  English, Burmese, or any combination of installed languages, progress, cancellation, preview,
+  and insert. Runtime assets and language models are bundled; no upload or account is required.
+- Optional OCR language packs managed in Settings: download a curated language, verify its
+  SHA-256 checksum against a pinned `tessdata_fast` revision, store it locally for offline OCR,
+  or remove it at any time.
 - Deterministic offline cleanup with a before/after preview: Unicode and whitespace
   normalization, conservative line-end hyphenation repair, OCR line reflow, and optional
   duplicate-line removal. Applied changes are ordinary editor edits, so Undo reverts them.
@@ -59,10 +62,11 @@ product specification.
 
 Current limitations: PDF text selection is approximate. OCR accuracy varies with scan quality
 and has not yet been validated against a representative English/Burmese corpus in this
-environment. Cleanup tools are conservative heuristics, not AI, and may still need manual
-review. DOCX export, direct PDF file generation, AI assistance, extra OCR language packs, and
-installable PWA behavior are not implemented yet. Browser storage can be cleared or evicted,
-so keep backups.
+environment. Optional packs come from a curated list and are checksum-verified, but the
+checksums and pinned revision must be updated manually. Cleanup tools are conservative
+heuristics, not AI, and may still need manual review. DOCX export, direct PDF file generation,
+AI assistance, and installable PWA behavior are not implemented yet. Browser storage can be
+cleared or evicted, so keep backups.
 
 ## Getting started
 
@@ -143,7 +147,9 @@ and PWA install support are added in a later phase.
   files, keys, archives, and local document stores.
 - Browser storage can be cleared by the browser or user; users should keep backups. Backup
   files contain document text and source files, so store them somewhere safe.
-- OCR runs in a browser worker with bundled language models; source pages are not uploaded.
+- OCR runs in a browser worker with bundled or locally installed language models; source pages
+  are not uploaded. Installing an optional pack downloads only the model file from the pinned
+  `tessdata_fast` revision in a user-initiated request.
 - No telemetry or analytics are included.
 
 ## License
