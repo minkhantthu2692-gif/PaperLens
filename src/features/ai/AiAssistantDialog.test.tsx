@@ -84,6 +84,40 @@ describe('AiAssistantDialog', () => {
     expect(onApply).toHaveBeenCalledWith('Improved text');
   });
 
+  it('inserts source text into the editor instead of replacing a selection', async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+    saveAiSettings({ ...DEFAULT_AI_SETTINGS, providerId: 'openai', model: 'test-model' });
+    addApiKey({ providerId: 'openai', label: 'Test', key: 'test-key' }, false);
+    aiMocks.requestAi.mockResolvedValue({
+      text: 'Improved page text',
+      providerId: 'openai',
+      model: 'test-model',
+      retries: 0,
+      inputChars: 14,
+      outputChars: 18,
+      cached: false,
+    });
+
+    render(
+      <AiAssistantDialog
+        open
+        sourceText="Page 2 text"
+        scopeLabel="Page 2 text"
+        applyMode="insert"
+        onApply={onApply}
+        onClose={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Page 2 text · 11 characters')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await user.click(await screen.findByRole('button', { name: 'Insert into editor' }));
+
+    expect(onApply).toHaveBeenCalledWith('Improved page text');
+  });
+
   it('shows configuration guidance when no key is stored', async () => {
     const user = userEvent.setup();
     const onOpenSettings = vi.fn();

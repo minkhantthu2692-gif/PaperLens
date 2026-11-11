@@ -13,6 +13,7 @@ import {
   MousePointer2,
   ScanLine,
   ScanText,
+  Sparkles,
   X,
   ZoomIn,
   ZoomOut,
@@ -37,6 +38,7 @@ interface SourcePanelProps {
   onOcrPage: (pageNumber: number) => void;
   onOcrImage: () => void;
   onOcrRegion: (blob: Blob) => void;
+  onAiText: (text: string, scopeLabel: string) => void;
 }
 
 type PdfModule = typeof PdfJs;
@@ -197,6 +199,7 @@ export function SourcePanel({
   onOcrPage,
   onOcrImage,
   onOcrRegion,
+  onAiText,
 }: SourcePanelProps) {
   const { t } = useTranslation();
   const kindLabel =
@@ -233,11 +236,12 @@ export function SourcePanel({
           onInsertText={onInsertText}
           onOcrPage={onOcrPage}
           onOcrRegion={onOcrRegion}
+          onAiText={onAiText}
         />
       ) : asset.mimeType.startsWith('image/') ? (
         <ImageSource asset={asset} onOcrImage={onOcrImage} onOcrRegion={onOcrRegion} />
       ) : (
-        <TextSource asset={asset} onInsertText={onInsertText} />
+        <TextSource asset={asset} onInsertText={onInsertText} onAiText={onAiText} />
       )}
     </section>
   );
@@ -250,6 +254,7 @@ function PdfSource({
   onInsertText,
   onOcrPage,
   onOcrRegion,
+  onAiText,
 }: {
   asset: SourceAsset;
   initialPageCount?: number;
@@ -257,6 +262,7 @@ function PdfSource({
   onInsertText: (text: string) => void;
   onOcrPage: (pageNumber: number) => void;
   onOcrRegion: (blob: Blob) => void;
+  onAiText: (text: string, scopeLabel: string) => void;
 }) {
   const { t } = useTranslation();
   const [pdfjs, setPdfjs] = useState<PdfModule | null>(null);
@@ -548,6 +554,16 @@ function PdfSource({
           <Button variant="ghost" size="sm" onClick={() => onOcrPage(pageNumber)}>
             <ScanText size={15} aria-hidden="true" />
             {t('workspace.ocrPage')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onAiText(pageText, t('workspace.aiScopePage', { page: pageNumber }))}
+            disabled={!pageText}
+            title={t('workspace.aiPage')}
+          >
+            <Sparkles size={15} aria-hidden="true" />
+            {t('workspace.aiPage')}
           </Button>
         </div>
       </div>
@@ -897,9 +913,11 @@ function ImageSource({
 function TextSource({
   asset,
   onInsertText,
+  onAiText,
 }: {
   asset: SourceAsset;
   onInsertText: (text: string) => void;
+  onAiText: (text: string, scopeLabel: string) => void;
 }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
@@ -936,6 +954,16 @@ function TextSource({
         >
           <FileText size={15} aria-hidden="true" />
           {t('workspace.insertAllText')}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onAiText(text, t('workspace.aiScopeDocument'))}
+          disabled={!text}
+          title={t('workspace.aiDocument')}
+        >
+          <Sparkles size={15} aria-hidden="true" />
+          {t('workspace.aiDocument')}
         </Button>
       </div>
       <div className={styles.scroll}>

@@ -63,7 +63,8 @@ product specification.
   counts and explicit save state.
 - Optional selected-text AI assistance with a floating editor action: proofread, rewrite,
   summarize, translate, or clean OCR text, with result preview, copy, and intentional
-  replace. Requests go directly from the browser to the configured provider; nothing is
+  replace. Source page/document text can open the Assistant directly, and OCR results can be
+  handed to it. Requests go directly from the browser to the configured provider; nothing is
   proxied. Results are not stored unless the optional exact-match cache is enabled.
 - AI settings for OpenAI, Google Gemini, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, xAI,
   Together AI, and custom OpenAI-compatible endpoints, including model discovery with manual
@@ -92,8 +93,9 @@ Current limitations: PDF text selection is approximate. OCR accuracy varies with
 and has not yet been validated against a representative English/Burmese corpus in this
 environment. Optional packs come from a curated list and are checksum-verified, but the
 checksums and pinned revision must be updated manually. Cleanup tools are conservative
-heuristics, not AI, and may still need manual review. AI actions are limited to selected text,
-depend on provider CORS/browser support, and cannot enforce provider-side quotas or billing.
+heuristics, not AI, and may still need manual review. AI actions run on editor selections or
+source page/document text, depend on provider CORS/browser support, and cannot enforce
+provider-side quotas or billing.
 Direct PDF file generation is not implemented; PDF export uses the browser print dialog. The
 service worker does not add background sync or push notifications, and PWA behavior still
 needs verification on representative mobile browsers. DOCX round-trip fidelity for very
@@ -185,11 +187,11 @@ Service workers require HTTPS (or localhost), so test installation against a dep
 - OCR runs in a browser worker with bundled or locally installed language models; source pages
   are not uploaded. Installing an optional pack downloads only the model file from the pinned
   `tessdata_fast` revision in a user-initiated request.
-- AI requests are user-initiated and send only the selected text directly to the configured
-  provider. Keys stay in session storage by default; remember-key is opt-in and stores the key
-  in browser storage. Keys and document text are never logged, backed up, or proxied. If the
-  exact-match AI cache is enabled, the normalized selected text and result are stored locally
-  in IndexedDB until they expire or you clear the cache.
+- AI requests are user-initiated and send only the selected text or source text the user chose
+  directly to the configured provider. Keys stay in session storage by default; remember-key
+  is opt-in and stores the key in browser storage. Keys and document text are never logged,
+  backed up, or proxied. If the exact-match AI cache is enabled, the normalized text and
+  result are stored locally in IndexedDB until they expire or you clear the cache.
 - The production HTML includes a restrictive Content-Security-Policy meta tag. It restricts
   scripts, workers, frames, and objects to the app origin (with local WebAssembly and blob
   workers allowed), while `connect-src` remains open to HTTPS AI providers and localhost

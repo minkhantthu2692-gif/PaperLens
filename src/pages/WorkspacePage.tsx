@@ -98,7 +98,12 @@ export default function WorkspacePage() {
     to: number;
   } | null>(null);
   const [cleanupOpen, setCleanupOpen] = useState(false);
-  const [aiSelection, setAiSelection] = useState<EditorSelectionContext | null>(null);
+  const [aiContext, setAiContext] = useState<{
+    text: string;
+    scopeLabel?: string;
+    applyMode: 'replace' | 'insert';
+    selection: EditorSelectionContext | null;
+  } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const editorRef = useRef<Editor | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -222,24 +227,58 @@ export default function WorkspacePage() {
   );
 
   const handleAiRequest = useCallback((selection: EditorSelectionContext) => {
-    setAiSelection(selection);
+    setAiContext({ text: selection.text, applyMode: 'replace', selection });
     setAiOpen(true);
   }, []);
+
+  const handleSourceAiText = useCallback((text: string, scopeLabel: string) => {
+    setAiContext({ text, scopeLabel, applyMode: 'insert', selection: null });
+    setAiOpen(true);
+  }, []);
+
+  const handleOcrAssistant = useCallback(
+    (text: string) => {
+      handleSourceAiText(text, t('workspace.aiScopeOcr'));
+    },
+    [handleSourceAiText, t],
+  );
 
   const handleApplyAi = useCallback(
     (text: string) => {
       const editor = editorRef.current;
-      if (!editor || !aiSelection) {
+      if (!editor || !aiContext) {
         return;
       }
-      editor
-        .chain()
-        .focus()
-        .insertContentAt({ from: aiSelection.from, to: aiSelection.to }, textToHtmlParagraphs(text))
-        .run();
+      if (aiContext.selection) {
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(
+            { from: aiContext.selection.from, to: aiContext.selection.to },
+            textToHtmlParagraphs(text),
+          )
+          .run();
+      } else {
+        const blocks = text
+          .split(/\n\s*\n+/)
+          .map((block) => block.replace(/\s*\n\s*/g, ' ').trim())
+          .filter(Boolean);
+        if (blocks.length === 0) {
+          return;
+        }
+        const paragraphs = blocks.map((block) => ({
+          type: 'paragraph',
+          content: [{ type: 'text', text: block }],
+        }));
+        editor
+          .chain()
+          .focus('end')
+          .insertContent(editor.isEmpty ? paragraphs : [{ type: 'paragraph' }, ...paragraphs])
+          .run();
+      }
       setNotice(t('assistant.applied'));
     },
-    [aiSelection, t],
+    [aiContext, t],
   );
 
   const handleSaveStateChange = useCallback((state: SaveState) => {
@@ -579,6 +618,7 @@ export default function WorkspacePage() {
               onOcrPage={handleOcrPage}
               onOcrImage={handleOcrImage}
               onOcrRegion={handleOcrRegion}
+              onAiText={handleSourceAiText}
             />
           ) : (
             <p className={styles.panelFallback}>{t('workspace.sourceError')}</p>
@@ -629,6 +669,7 @@ export default function WorkspacePage() {
         pdfPageCount={document.source.pageCount ?? 1}
         onClose={() => setOcrTarget(null)}
         onInsert={handleInsertText}
+        onUseWithAssistant={handleOcrAssistant}
       />
 
       <CleanupDialog
@@ -641,7 +682,9 @@ export default function WorkspacePage() {
 
       <AiAssistantDialog
         open={aiOpen}
-        sourceText={aiSelection?.text ?? ''}
+        sourceText={aiContext?.text ?? ''}
+        {...(aiContext?.scopeLabel ? { scopeLabel: aiContext.scopeLabel } : {})}
+        applyMode={aiContext?.applyMode ?? 'replace'}
         onClose={() => setAiOpen(false)}
         onApply={handleApplyAi}
         onOpenSettings={() => {

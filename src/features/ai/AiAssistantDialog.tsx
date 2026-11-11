@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, Copy, Replace, Sparkles, Square, Wand2 } from 'lucide-react';
+import { AlertCircle, Check, Copy, Plus, Replace, Sparkles, Square, Wand2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -18,6 +18,8 @@ type ErrorState = AiErrorCode | 'not-configured';
 interface AiAssistantDialogProps {
   open: boolean;
   sourceText: string;
+  scopeLabel?: string;
+  applyMode?: 'replace' | 'insert';
   onClose: () => void;
   onApply: (text: string) => void;
   onOpenSettings: () => void;
@@ -77,6 +79,8 @@ function errorMessageKey(code: ErrorState) {
 export function AiAssistantDialog({
   open,
   sourceText,
+  scopeLabel,
+  applyMode = 'replace',
   onClose,
   onApply,
   onOpenSettings,
@@ -250,8 +254,12 @@ export function AiAssistantDialog({
         </Button>
       ) : result ? (
         <Button variant="primary" onClick={handleApply}>
-          <Replace size={15} aria-hidden="true" />
-          {t('assistant.replace')}
+          {applyMode === 'insert' ? (
+            <Plus size={15} aria-hidden="true" />
+          ) : (
+            <Replace size={15} aria-hidden="true" />
+          )}
+          {applyMode === 'insert' ? t('assistant.insert') : t('assistant.replace')}
         </Button>
       ) : (
         <Button variant="primary" onClick={handleGenerate} disabled={status === 'running'}>
@@ -279,7 +287,11 @@ export function AiAssistantDialog({
       footer={footer}
     >
       <div className={styles.body}>
-        <p className={styles.scope}>{t('assistant.scope', { count: sourceText.length })}</p>
+        <p className={styles.scope}>
+          {scopeLabel
+            ? t('assistant.scopeWithLabel', { label: scopeLabel, count: sourceText.length })
+            : t('assistant.scope', { count: sourceText.length })}
+        </p>
 
         <div className={styles.controls}>
           <div className={styles.field}>

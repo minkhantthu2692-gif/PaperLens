@@ -33,7 +33,11 @@ const asset: SourceAsset = {
   createdAt: 0,
 };
 
-function renderDialog(onInsert = vi.fn(), onClose = vi.fn()) {
+function renderDialog(
+  onInsert = vi.fn(),
+  onClose = vi.fn(),
+  onUseWithAssistant?: (text: string) => void,
+) {
   return render(
     <MemoryRouter>
       <OcrDialog
@@ -41,6 +45,7 @@ function renderDialog(onInsert = vi.fn(), onClose = vi.fn()) {
         sourceAsset={asset}
         onClose={onClose}
         onInsert={onInsert}
+        {...(onUseWithAssistant ? { onUseWithAssistant } : {})}
       />
     </MemoryRouter>,
   );
@@ -71,6 +76,20 @@ describe('OcrDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Insert into editor' }));
 
     expect(onInsert).toHaveBeenCalledWith('Hello world');
+  });
+
+  it('hands recognized text to the AI Assistant when requested', async () => {
+    const user = userEvent.setup();
+    const onUseWithAssistant = vi.fn();
+    const onClose = vi.fn();
+    ocrMocks.recognize.mockResolvedValue('Selected region text');
+    renderDialog(vi.fn(), onClose, onUseWithAssistant);
+
+    await user.click(screen.getByRole('button', { name: 'Start OCR' }));
+    await user.click(await screen.findByRole('button', { name: 'Use in AI Assistant' }));
+
+    expect(onUseWithAssistant).toHaveBeenCalledWith('Selected region text');
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('cancels a running recognition and terminates the worker', async () => {

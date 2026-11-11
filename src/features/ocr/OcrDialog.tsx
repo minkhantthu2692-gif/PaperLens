@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, Clipboard, ScanText } from 'lucide-react';
+import { AlertCircle, Check, Clipboard, ScanText, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
@@ -26,6 +26,7 @@ interface OcrDialogProps {
   pdfPageCount?: number | undefined;
   onClose: () => void;
   onInsert: (text: string) => void;
+  onUseWithAssistant?: (text: string) => void;
 }
 
 const LANGUAGE_STORAGE_KEY = 'paperlens.ocr.language';
@@ -51,6 +52,7 @@ export function OcrDialog({
   pdfPageCount,
   onClose,
   onInsert,
+  onUseWithAssistant,
 }: OcrDialogProps) {
   const { t } = useTranslation();
   const [languages, setLanguages] = useState<string[]>(readOcrLanguages);
@@ -425,14 +427,29 @@ export function OcrDialog({
             <div className={styles.result}>
               <div className={styles.resultHeader}>
                 <span className={styles.resultTitle}>{t('ocr.result')}</span>
-                <Button variant="ghost" size="sm" onClick={() => void handleCopy()}>
-                  {copied ? (
-                    <Check size={15} aria-hidden="true" />
-                  ) : (
-                    <Clipboard size={15} aria-hidden="true" />
-                  )}
-                  {copied ? t('ocr.copied') : t('common.copy')}
-                </Button>
+                <div className={styles.resultActions}>
+                  {onUseWithAssistant ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        onUseWithAssistant(result);
+                        handleClose();
+                      }}
+                    >
+                      <Sparkles size={15} aria-hidden="true" />
+                      {t('ocr.useInAssistant')}
+                    </Button>
+                  ) : null}
+                  <Button variant="ghost" size="sm" onClick={() => void handleCopy()}>
+                    {copied ? (
+                      <Check size={15} aria-hidden="true" />
+                    ) : (
+                      <Clipboard size={15} aria-hidden="true" />
+                    )}
+                    {copied ? t('ocr.copied') : t('common.copy')}
+                  </Button>
+                </div>
               </div>
               <pre className={styles.resultText} tabIndex={0}>
                 {result}
