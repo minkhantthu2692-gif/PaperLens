@@ -18,7 +18,8 @@ export function exportPlainText(title: string, text: string): void {
   );
 }
 
-function buildHtmlDocument(title: string, sanitizedBody: string): string {
+export function buildHtmlDocument(title: string, html: string): string {
+  const sanitizedBody = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -40,9 +41,8 @@ ${sanitizedBody}
 }
 
 export function exportHtml(title: string, html: string): void {
-  const sanitized = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
   downloadBlob(
-    new Blob([buildHtmlDocument(title, sanitized)], { type: 'text/html;charset=utf-8' }),
+    new Blob([buildHtmlDocument(title, html)], { type: 'text/html;charset=utf-8' }),
     `${sanitizeFileName(title)}.html`,
   );
 }
@@ -54,14 +54,13 @@ export async function exportDocx(title: string, content: JSONContent): Promise<v
 }
 
 export function printDocument(title: string, html: string): void {
-  const sanitized = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     throw new Error('Print window blocked');
   }
   printWindow.opener = null;
   printWindow.document.open();
-  printWindow.document.write(buildHtmlDocument(title, sanitized));
+  printWindow.document.write(buildHtmlDocument(title, html));
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();

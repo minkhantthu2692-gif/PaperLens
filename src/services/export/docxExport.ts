@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/react';
+import { getParagraphAlignment } from '@/domain/paragraphAlignment';
 import {
   AlignmentType,
   BorderStyle,
@@ -132,7 +133,7 @@ function headingFor(node: JSONContent): Heading | undefined {
 function alignmentFor(
   node: JSONContent,
 ): (typeof AlignmentType)[keyof typeof AlignmentType] | undefined {
-  switch (node.attrs?.['textAlign']) {
+  switch (getParagraphAlignment(node.attrs?.['textAlign'])) {
     case 'center':
       return AlignmentType.CENTER;
     case 'right':
@@ -141,8 +142,6 @@ function alignmentFor(
       return AlignmentType.JUSTIFIED;
     case 'left':
       return AlignmentType.LEFT;
-    default:
-      return undefined;
   }
 }
 

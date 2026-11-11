@@ -259,6 +259,7 @@ export const en = {
     alignLeft: 'Align left',
     alignCenter: 'Align center',
     alignRight: 'Align right',
+    alignJustify: 'Justify',
     words: '{{count}} words',
     linkAdd: 'Add link',
     linkEdit: 'Edit link',

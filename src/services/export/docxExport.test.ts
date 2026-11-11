@@ -135,4 +135,70 @@ describe('DOCX export', () => {
     expect(documentXml).not.toContain('javascript:alert');
     expect(relationships).not.toContain('javascript:alert');
   });
+
+  it('preserves alignment for headings, paragraphs, lists, and quotes', async () => {
+    const aligned: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 2, textAlign: 'right' },
+          content: [{ type: 'text', text: 'Right heading' }],
+        },
+        {
+          type: 'paragraph',
+          attrs: { textAlign: 'justify' },
+          content: [{ type: 'text', text: 'Justified paragraph' }],
+        },
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                {
+                  type: 'paragraph',
+                  attrs: { textAlign: 'center' },
+                  content: [{ type: 'text', text: 'Centered bullet' }],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'orderedList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                {
+                  type: 'paragraph',
+                  attrs: { textAlign: 'left' },
+                  content: [{ type: 'text', text: 'Left numbered item' }],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'blockquote',
+          content: [
+            {
+              type: 'paragraph',
+              attrs: { textAlign: 'justify' },
+              content: [{ type: 'text', text: 'Justified quote' }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const blob = await createDocxBlob('Alignment', aligned);
+    const { documentXml } = await unpack(blob);
+
+    expect(documentXml).toContain('<w:jc w:val="right"/>');
+    expect(documentXml).toContain('<w:jc w:val="both"/>');
+    expect(documentXml).toContain('<w:jc w:val="center"/>');
+    expect(documentXml).toContain('<w:jc w:val="left"/>');
+  });
 });

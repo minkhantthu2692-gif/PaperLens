@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import {
+  AlignJustify,
   AlignCenter,
   AlignLeft,
   AlignRight,
@@ -22,6 +23,7 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
 import type { EditorContent as EditorSnapshot } from '@/domain/document';
+import { getParagraphAlignment, type ParagraphAlignment } from '@/domain/paragraphAlignment';
 import { countWords, normalizeLinkHref } from '@/lib/format';
 import { saveEditorContent } from '@/services/storage/documents';
 import { createEditorExtensions } from '@/features/editor/extensions';
@@ -211,6 +213,9 @@ export function EditorPanel({
 
   const linkActive = editor.isActive('link');
   const canEditLink = linkActive || !editor.state.selection.empty;
+  const alignmentNode = editor.isActive('heading') ? 'heading' : 'paragraph';
+  const currentAlignment = getParagraphAlignment(editor.getAttributes(alignmentNode).textAlign);
+  const alignmentIsActive = (alignment: ParagraphAlignment) => currentAlignment === alignment;
 
   const openLinkDialog = () => {
     setLinkUrl(editor.getAttributes('link').href ?? '');
@@ -399,11 +404,11 @@ export function EditorPanel({
           variant="ghost"
           size="sm"
           iconOnly
-          className={editor.isActive({ textAlign: 'left' }) ? styles.active : undefined}
+          className={alignmentIsActive('left') ? styles.active : undefined}
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
           aria-label={t('editor.alignLeft')}
           title={t('editor.alignLeft')}
-          aria-pressed={editor.isActive({ textAlign: 'left' })}
+          aria-pressed={alignmentIsActive('left')}
         >
           <AlignLeft size={16} aria-hidden="true" />
         </Button>
@@ -411,11 +416,11 @@ export function EditorPanel({
           variant="ghost"
           size="sm"
           iconOnly
-          className={editor.isActive({ textAlign: 'center' }) ? styles.active : undefined}
+          className={alignmentIsActive('center') ? styles.active : undefined}
           onClick={() => editor.chain().focus().setTextAlign('center').run()}
           aria-label={t('editor.alignCenter')}
           title={t('editor.alignCenter')}
-          aria-pressed={editor.isActive({ textAlign: 'center' })}
+          aria-pressed={alignmentIsActive('center')}
         >
           <AlignCenter size={16} aria-hidden="true" />
         </Button>
@@ -423,13 +428,25 @@ export function EditorPanel({
           variant="ghost"
           size="sm"
           iconOnly
-          className={editor.isActive({ textAlign: 'right' }) ? styles.active : undefined}
+          className={alignmentIsActive('right') ? styles.active : undefined}
           onClick={() => editor.chain().focus().setTextAlign('right').run()}
           aria-label={t('editor.alignRight')}
           title={t('editor.alignRight')}
-          aria-pressed={editor.isActive({ textAlign: 'right' })}
+          aria-pressed={alignmentIsActive('right')}
         >
           <AlignRight size={16} aria-hidden="true" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          className={alignmentIsActive('justify') ? styles.active : undefined}
+          onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+          aria-label={t('editor.alignJustify')}
+          title={t('editor.alignJustify')}
+          aria-pressed={alignmentIsActive('justify')}
+        >
+          <AlignJustify size={16} aria-hidden="true" />
         </Button>
       </div>
 

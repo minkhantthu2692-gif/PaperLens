@@ -3,6 +3,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
+import { PARAGRAPH_ALIGNMENTS } from '@/domain/paragraphAlignment';
 
 export function createEditorExtensions(placeholder: string) {
   return [
@@ -17,7 +18,11 @@ export function createEditorExtensions(placeholder: string) {
       protocols: ['http', 'https', 'mailto', 'tel'],
       HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
     }),
-    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    TextAlign.configure({
+      types: ['heading', 'paragraph'],
+      alignments: [...PARAGRAPH_ALIGNMENTS],
+      defaultAlignment: 'left',
+    }),
     Placeholder.configure({ placeholder }),
   ];
 }

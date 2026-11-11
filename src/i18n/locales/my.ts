@@ -270,6 +270,7 @@ export const my: Widen<typeof en> = {
     alignLeft: 'ဘယ်ဘက်ညှိမည်',
     alignCenter: 'အလယ်ညှိမည်',
     alignRight: 'ညာဘက်ညှိမည်',
+    alignJustify: 'ဘယ်ညာညီညှိမည်',
     words: 'စကားလုံး {{count}} လုံး',
     linkAdd: 'လင့်ခ် ထည့်မည်',
     linkEdit: 'လင့်ခ် ပြင်မည်',
