@@ -118,6 +118,41 @@ describe('AiAssistantDialog', () => {
     expect(onApply).toHaveBeenCalledWith('Improved page text');
   });
 
+  it('regenerates a result and clears stale output when the action changes', async () => {
+    const user = userEvent.setup();
+    saveAiSettings({ ...DEFAULT_AI_SETTINGS, providerId: 'openai', model: 'test-model' });
+    addApiKey({ providerId: 'openai', label: 'Test', key: 'test-key' }, false);
+    aiMocks.requestAi
+      .mockResolvedValueOnce({
+        text: 'First result',
+        providerId: 'openai',
+        model: 'test-model',
+        retries: 0,
+        inputChars: 17,
+        outputChars: 12,
+      })
+      .mockResolvedValueOnce({
+        text: 'Second result',
+        providerId: 'openai',
+        model: 'test-model',
+        retries: 0,
+        inputChars: 17,
+        outputChars: 13,
+      });
+
+    renderDialog();
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(await screen.findByText('First result')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Generate again' }));
+    expect(await screen.findByText('Second result')).toBeInTheDocument();
+    expect(screen.queryByText('First result')).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Action'), 'summarize');
+    expect(screen.queryByText('Second result')).not.toBeInTheDocument();
+  });
+
   it('shows configuration guidance when no key is stored', async () => {
     const user = userEvent.setup();
     const onOpenSettings = vi.fn();

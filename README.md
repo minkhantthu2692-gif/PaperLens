@@ -83,7 +83,7 @@ product specification.
   dialog. DOCX preserves headings, bold/italic/underline/strikethrough/code runs, safe
   external links, bulleted and numbered lists, block quotes, code blocks, alignment, and
   horizontal rules. Unsafe link protocols are rendered as plain text.
-- Versioned JSON backup and restore, storage-usage display, and delete-all-local-data controls.
+- Versioned JSON backup and restore, storage-usage display, and controls to delete documents and the AI cache without removing API keys, preferences, or OCR language packs.
 - Installable PWA with a web app manifest and service worker. The production build caches the
   app shell and same-origin static assets for offline startup; cross-origin AI requests are
   never cached by the service worker.
@@ -135,7 +135,6 @@ src/
 ├── features/     # Feature modules (documents, workspace, editor, settings, assistant)
 ├── domain/       # Framework-independent document types and transformations
 ├── services/     # Storage, PDF, OCR, AI adapters, export
-├── workers/      # Web Workers for CPU-heavy work
 ├── hooks/        # Shared React hooks
 ├── lib/          # Small framework-independent utilities
 ├── i18n/         # Localization setup and locale resources
@@ -168,15 +167,33 @@ installing. On a normal desktop filesystem, plain `npm install` and the same scr
 
 ## Deployment
 
-The app is a static SPA with no required server functions. The build output is `dist/`.
+The app is a static SPA with no required server functions. Build output is `dist/`.
 `VITE_BASE_PATH` controls the public base path (default `/`), required for sub-path
-deployments such as GitHub Pages (`/PaperLens/`). Because routing is client-side, configure an
-SPA fallback to `index.html`: on Vercel add a rewrite, on Cloudflare Pages enable single-page
-app handling, and on GitHub Pages use the `404.html` fallback that the build writes
-automatically. The production build registers `sw.js` and exposes `manifest.webmanifest`; both
-respect `VITE_BASE_PATH`.
-Service workers require HTTPS (or localhost), so test installation against a deployed build or
-`npm run preview` rather than the plain development server.
+deployments such as GitHub Pages (`/PaperLens/`). Because routing is client-side, every host
+needs an SPA fallback to `index.html`.
+
+Build command for all hosts:
+
+```bash
+npm ci && npm run build
+```
+
+Publish the `dist/` directory.
+
+- **GitHub Pages:** run `npm ci`, then `VITE_BASE_PATH=/PaperLens/ npm run build` (match the
+  repository name). Publish `dist/`. The postbuild step writes `dist/404.html`, which provides
+  the SPA fallback.
+- **Vercel:** use `npm ci && npm run build` and output `dist`. The included `vercel.json`
+  rewrites unknown paths to `index.html` while static files are served normally.
+- **Cloudflare Pages:** use `npm ci && npm run build` and output `dist`. The included
+  `public/_redirects` file rewrites unknown paths to `index.html`. Alternatively enable
+  single-page app handling in the Pages project settings.
+
+Set `VITE_BASE_PATH` at build time when the app is not served from `/`. The production build
+registers `sw.js` and exposes `manifest.webmanifest`; both respect `VITE_BASE_PATH`. Service
+workers require HTTPS (or localhost), so test installation against a deployed build or
+`npm run preview` rather than the plain development server. If a host strips or rewrites
+`sw.js` scope, the app still works but offline installation will not be available.
 
 ## Privacy and security
 

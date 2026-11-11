@@ -6,12 +6,24 @@ import '@/i18n';
 import i18n from '@/i18n';
 import type { SourceAsset } from '@/domain/document';
 import { createOcrSession } from '@/services/ocr/ocrEngine';
-import { listInstalledLanguageCodes } from '@/services/ocr/languagePacks';
+import { listInstalledLanguageCodes, type LanguagePack } from '@/services/ocr/languagePacks';
 import { OcrDialog } from './OcrDialog';
 
 const ocrMocks = vi.hoisted(() => ({
   recognize: vi.fn(),
   terminate: vi.fn().mockResolvedValue(undefined),
+}));
+
+const packMocks = vi.hoisted(() => ({
+  install: vi.fn(),
+  pack: {
+    code: 'spa',
+    name: 'Spanish',
+    nativeName: 'Español',
+    size: 100,
+    sha256: 'test-checksum',
+    url: 'https://example.com/spa.traineddata',
+  } satisfies LanguagePack,
 }));
 
 vi.mock('@/services/ocr/ocrEngine', () => ({
@@ -20,8 +32,15 @@ vi.mock('@/services/ocr/ocrEngine', () => ({
 }));
 
 vi.mock('@/services/ocr/languagePacks', () => ({
-  getOptionalLanguagePack: () => undefined,
+  OPTIONAL_LANGUAGE_PACKS: [packMocks.pack],
+  getOptionalLanguagePack: (code: string) =>
+    code === packMocks.pack.code ? packMocks.pack : undefined,
   listInstalledLanguageCodes: vi.fn(),
+  installLanguagePack: packMocks.install,
+  isAbortError: (error: unknown) =>
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: string }).name === 'AbortError',
 }));
 
 const asset: SourceAsset = {
@@ -52,8 +71,11 @@ function renderDialog(
 }
 
 beforeEach(async () => {
+  localStorage.removeItem('paperlens.ocr.language');
   ocrMocks.recognize.mockReset();
   ocrMocks.terminate.mockResolvedValue(undefined);
+  packMocks.install.mockReset();
+  packMocks.install.mockResolvedValue(undefined);
   vi.mocked(listInstalledLanguageCodes).mockResolvedValue(new Set());
   vi.mocked(createOcrSession).mockResolvedValue({
     recognize: ocrMocks.recognize,
@@ -62,6 +84,12 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
 });
 
+async function clickStart(user: ReturnType<typeof userEvent.setup>) {
+  const button = await screen.findByRole('button', { name: 'Start OCR' });
+  await waitFor(() => expect(button).toBeEnabled());
+  await user.click(button);
+}
+
 describe('OcrDialog', () => {
   it('recognizes text and inserts the reconstructed result', async () => {
     const user = userEvent.setup();
@@ -69,7 +97,7 @@ describe('OcrDialog', () => {
     ocrMocks.recognize.mockResolvedValue('Hello\nworld');
     renderDialog(onInsert);
 
-    await user.click(screen.getByRole('button', { name: 'Start OCR' }));
+    await clickStart(user);
 
     expect(await screen.findByText('Hello world')).toBeInTheDocument();
 
@@ -85,11 +113,29 @@ describe('OcrDialog', () => {
     ocrMocks.recognize.mockResolvedValue('Selected region text');
     renderDialog(vi.fn(), onClose, onUseWithAssistant);
 
-    await user.click(screen.getByRole('button', { name: 'Start OCR' }));
+    await clickStart(user);
     await user.click(await screen.findByRole('button', { name: 'Use in AI Assistant' }));
 
     expect(onUseWithAssistant).toHaveBeenCalledWith('Selected region text');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('installs a missing language pack and continues OCR', async () => {
+    const user = userEvent.setup();
+    ocrMocks.recognize.mockResolvedValue('Installed language text');
+    renderDialog();
+
+    const checkbox = await screen.findByRole('checkbox', { name: /Español/ });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    await user.click(checkbox);
+    await user.click(await screen.findByRole('button', { name: 'Install language and start OCR' }));
+
+    expect(packMocks.install).toHaveBeenCalledWith(
+      packMocks.pack,
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
+    expect(await screen.findByText('Installed language text')).toBeInTheDocument();
   });
 
   it('cancels a running recognition and terminates the worker', async () => {
@@ -104,7 +150,7 @@ describe('OcrDialog', () => {
     );
     renderDialog(onInsert);
 
-    await user.click(screen.getByRole('button', { name: 'Start OCR' }));
+    await clickStart(user);
     await user.click(await screen.findByRole('button', { name: 'Cancel OCR' }));
 
     expect(await screen.findByText('OCR was cancelled.')).toBeInTheDocument();

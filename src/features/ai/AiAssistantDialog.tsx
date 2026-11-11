@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, Copy, Plus, Replace, Sparkles, Square, Wand2 } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Plus,
+  Replace,
+  RotateCcw,
+  Sparkles,
+  Square,
+  Wand2,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -131,6 +141,16 @@ export function AiAssistantDialog({
     !!settings.model.trim() &&
     !(settings.providerId === 'custom' && !settings.customBaseUrl.trim());
 
+  const resetResult = () => {
+    setResult(null);
+    setStatus('idle');
+    setError(null);
+    setCached(false);
+    setWarning(null);
+    setWarningConfirmed(false);
+    setCopied('idle');
+  };
+
   const handleClose = () => {
     controllerRef.current?.abort();
     onClose();
@@ -206,6 +226,11 @@ export function AiAssistantDialog({
     void runRequest();
   };
 
+  const handleRetry = () => {
+    resetResult();
+    handleGenerate();
+  };
+
   const handleCopy = async () => {
     if (!result) {
       return;
@@ -238,14 +263,20 @@ export function AiAssistantDialog({
           {t('assistant.cancelRequest')}
         </Button>
       ) : result ? (
-        <Button variant="secondary" onClick={() => void handleCopy()}>
-          {copied === 'done' ? (
-            <Check size={15} aria-hidden="true" />
-          ) : (
-            <Copy size={15} aria-hidden="true" />
-          )}
-          {copied === 'done' ? t('assistant.copied') : t('assistant.copy')}
-        </Button>
+        <>
+          <Button variant="secondary" onClick={() => void handleCopy()}>
+            {copied === 'done' ? (
+              <Check size={15} aria-hidden="true" />
+            ) : (
+              <Copy size={15} aria-hidden="true" />
+            )}
+            {copied === 'done' ? t('assistant.copied') : t('assistant.copy')}
+          </Button>
+          <Button variant="ghost" onClick={handleRetry}>
+            <RotateCcw size={15} aria-hidden="true" />
+            {t('assistant.retry')}
+          </Button>
+        </>
       ) : null}
 
       {!configured && status !== 'running' ? (
@@ -306,8 +337,7 @@ export function AiAssistantDialog({
               onChange={(event) => {
                 const next = event.target.value as AiTaskId;
                 setTask(next);
-                setWarning(null);
-                setWarningConfirmed(false);
+                resetResult();
               }}
             >
               {TASKS.map((option) => (
@@ -328,7 +358,10 @@ export function AiAssistantDialog({
                 className={formStyles.select}
                 value={targetLanguage}
                 disabled={status === 'running'}
-                onChange={(event) => setTargetLanguage(event.target.value)}
+                onChange={(event) => {
+                  setTargetLanguage(event.target.value);
+                  resetResult();
+                }}
               >
                 <option value="English">{t('assistant.languageEnglish')}</option>
                 <option value="Burmese">{t('assistant.languageBurmese')}</option>

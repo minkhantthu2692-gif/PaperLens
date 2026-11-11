@@ -6,6 +6,7 @@ import {
   AlignRight,
   Bold,
   Italic,
+  Link2,
   List,
   ListOrdered,
   PenLine,
@@ -18,8 +19,10 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
+import formStyles from '@/components/ui/Form.module.css';
 import type { EditorContent as EditorSnapshot } from '@/domain/document';
-import { countWords } from '@/lib/format';
+import { countWords, normalizeLinkHref } from '@/lib/format';
 import { saveEditorContent } from '@/services/storage/documents';
 import { createEditorExtensions } from '@/features/editor/extensions';
 import styles from './EditorPanel.module.css';
@@ -66,6 +69,9 @@ export function EditorPanel({
   const { t } = useTranslation();
   const [stats, setStats] = useState({ words: 0, characters: 0 });
   const [aiBubble, setAiBubble] = useState<AiBubblePosition | null>(null);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkError, setLinkError] = useState<string | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const pendingRef = useRef<EditorSnapshot | null>(null);
   const unsavedRef = useRef(false);
@@ -203,6 +209,30 @@ export function EditorPanel({
         ? '3'
         : 'paragraph';
 
+  const linkActive = editor.isActive('link');
+  const canEditLink = linkActive || !editor.state.selection.empty;
+
+  const openLinkDialog = () => {
+    setLinkUrl(editor.getAttributes('link').href ?? '');
+    setLinkError(null);
+    setLinkDialogOpen(true);
+  };
+
+  const applyLink = () => {
+    const href = normalizeLinkHref(linkUrl);
+    if (!href) {
+      setLinkError(t('editor.linkInvalid'));
+      return;
+    }
+    editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
+    setLinkDialogOpen(false);
+  };
+
+  const removeLink = () => {
+    editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    setLinkDialogOpen(false);
+  };
+
   return (
     <section className={styles.shell} aria-label={t('workspace.editor')}>
       <header className={styles.panelHeader}>
@@ -310,6 +340,20 @@ export function EditorPanel({
           <Strikethrough size={16} aria-hidden="true" />
         </Button>
 
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          className={linkActive ? styles.active : undefined}
+          onClick={openLinkDialog}
+          disabled={!canEditLink}
+          aria-label={linkActive ? t('editor.linkEdit') : t('editor.linkAdd')}
+          title={linkActive ? t('editor.linkEdit') : t('editor.linkAdd')}
+          aria-pressed={linkActive}
+        >
+          <Link2 size={16} aria-hidden="true" />
+        </Button>
+
         <span className={styles.divider} aria-hidden="true" />
 
         <Button
@@ -399,6 +443,54 @@ export function EditorPanel({
         <span>{t('editor.words', { count: stats.words })}</span>
         <span>{t('editor.characters', { count: stats.characters })}</span>
       </footer>
+
+      <Dialog
+        open={linkDialogOpen}
+        title={linkActive ? t('editor.linkEdit') : t('editor.linkAdd')}
+        description={t('editor.linkHint')}
+        onClose={() => setLinkDialogOpen(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setLinkDialogOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            {linkActive ? (
+              <Button variant="ghost" onClick={removeLink}>
+                {t('editor.linkRemove')}
+              </Button>
+            ) : null}
+            <Button variant="primary" onClick={applyLink}>
+              {t('editor.linkApply')}
+            </Button>
+          </>
+        }
+      >
+        <div className={formStyles.field}>
+          <label className={formStyles.label} htmlFor="editor-link-url">
+            {t('editor.linkUrl')}
+          </label>
+          <input
+            id="editor-link-url"
+            className={formStyles.input}
+            value={linkUrl}
+            onChange={(event) => {
+              setLinkUrl(event.target.value);
+              setLinkError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                applyLink();
+              }
+            }}
+          />
+          {linkError ? (
+            <p className={formStyles.alert} role="alert">
+              {linkError}
+            </p>
+          ) : null}
+        </div>
+      </Dialog>
 
       {aiBubble ? (
         <button

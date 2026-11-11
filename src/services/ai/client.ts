@@ -160,9 +160,6 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
   if (!baseUrl) {
     throw new AiError('missing-base-url');
   }
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    throw new AiError('offline');
-  }
 
   const inputText = text.trim();
   if (!inputText) {
@@ -198,6 +195,10 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     } catch {
       // A cache failure must not block a live request.
     }
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new AiError('offline');
   }
 
   const allowance = getAiAllowance(guardrails);

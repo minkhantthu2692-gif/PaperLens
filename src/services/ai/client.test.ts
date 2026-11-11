@@ -42,6 +42,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(navigator, 'onLine');
 });
 
 describe('requestAi guardrails', () => {
@@ -228,24 +229,54 @@ describe('requestAi guardrails', () => {
     expect(config).toMatchObject({ enabled: true, expiryDays: 3 });
   });
 
-  it('rejects requests while offline', async () => {
+  it('returns a cached result while offline', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const online = Object.getOwnPropertyDescriptor(Navigator.prototype, 'onLine');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    vi.mocked(readAiCache).mockResolvedValue({
+      key: 'cached-key',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
+      providerId: 'openai',
+      model: 'test-model',
+      task: 'proofread',
+      result: 'Cached offline result',
+      inputChars: 4,
+      outputChars: 21,
+    });
+
+    const result = await requestAi({
+      settings: settingsWith({
+        cache: { ...DEFAULT_AI_SETTINGS.cache, enabled: true },
+      }),
+      apiKey: 'test-key',
+      task: 'proofread',
+      text: 'Text',
+    });
+
+    expect(result).toMatchObject({
+      text: 'Cached offline result',
+      cached: true,
+      retries: 0,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects requests with no cached result while offline', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
 
     await expect(
       requestAi({
-        settings: settingsWith(),
+        settings: settingsWith({
+          cache: { ...DEFAULT_AI_SETTINGS.cache, enabled: true },
+        }),
         apiKey: 'test-key',
         task: 'proofread',
         text: 'Text',
       }),
     ).rejects.toMatchObject({ code: 'offline' });
     expect(fetchMock).not.toHaveBeenCalled();
-
-    if (online) {
-      Object.defineProperty(Navigator.prototype, 'onLine', online);
-    }
   });
 });

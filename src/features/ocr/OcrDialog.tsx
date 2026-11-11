@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, Clipboard, ScanText, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { formatBytes } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import type { SourceAsset } from '@/domain/document';
@@ -10,7 +11,14 @@ import {
   isValidLanguageExpression,
   type OcrSession,
 } from '@/services/ocr/ocrEngine';
-import { getOptionalLanguagePack, listInstalledLanguageCodes } from '@/services/ocr/languagePacks';
+import {
+  getOptionalLanguagePack,
+  installLanguagePack,
+  isAbortError,
+  listInstalledLanguageCodes,
+  OPTIONAL_LANGUAGE_PACKS,
+  type LanguagePack,
+} from '@/services/ocr/languagePacks';
 import { combineOcrPages, reconstructOcrText } from '@/services/ocr/ocrText';
 import { openPdfRenderer, type PdfPageRenderer } from '@/services/ocr/pdfRenderer';
 import styles from './OcrDialog.module.css';
@@ -18,7 +26,7 @@ import styles from './OcrDialog.module.css';
 export type OcrTarget =
   { kind: 'pdf'; pageNumber: number } | { kind: 'image' } | { kind: 'region'; blob: Blob };
 
-type OcrStatus = 'idle' | 'running' | 'cancelled' | 'done' | 'error';
+type OcrStatus = 'idle' | 'running' | 'installing' | 'cancelled' | 'done' | 'error';
 
 interface OcrDialogProps {
   target: OcrTarget | null;
@@ -57,20 +65,26 @@ export function OcrDialog({
   const { t } = useTranslation();
   const [languages, setLanguages] = useState<string[]>(readOcrLanguages);
   const [installedCodes, setInstalledCodes] = useState<Set<string>>(new Set());
+  const [packsReady, setPacksReady] = useState(false);
   const [scope, setScope] = useState<'current' | 'all'>('current');
   const [status, setStatus] = useState<OcrStatus>('idle');
   const [progress, setProgress] = useState(0);
+  const [installProgress, setInstallProgress] = useState(0);
+  const [installingPack, setInstallingPack] = useState<LanguagePack | null>(null);
   const [pageInfo, setPageInfo] = useState({ current: 0, total: 0 });
   const [result, setResult] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const workerRef = useRef<OcrSession | null>(null);
+  const installControllerRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
 
   useEffect(() => {
     setStatus('idle');
     setProgress(0);
+    setInstallProgress(0);
+    setInstallingPack(null);
     setPageInfo({ current: 0, total: 0 });
     setResult('');
     setError(null);
@@ -83,6 +97,7 @@ export function OcrDialog({
       return;
     }
     let cancelled = false;
+    setPacksReady(false);
     void listInstalledLanguageCodes()
       .then((codes) => {
         if (cancelled) {
@@ -98,6 +113,11 @@ export function OcrDialog({
       .catch(() => {
         if (!cancelled) {
           setInstalledCodes(new Set());
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPacksReady(true);
         }
       });
     return () => {
@@ -126,6 +146,7 @@ export function OcrDialog({
   useEffect(() => {
     return () => {
       cancelledRef.current = true;
+      installControllerRef.current?.abort();
       void workerRef.current?.terminate().catch(() => undefined);
     };
   }, []);
@@ -135,12 +156,17 @@ export function OcrDialog({
     setError(null);
     setStatus('idle');
     setProgress(0);
+    setInstallProgress(0);
+    setInstallingPack(null);
     setPageInfo({ current: 0, total: 0 });
     setCopied(false);
   };
 
   const cancelOcr = () => {
     cancelledRef.current = true;
+    installControllerRef.current?.abort();
+    installControllerRef.current = null;
+    setInstallingPack(null);
     void workerRef.current?.terminate().catch(() => undefined);
     workerRef.current = null;
     setStatus('cancelled');
@@ -148,13 +174,15 @@ export function OcrDialog({
 
   const handleClose = useCallback(() => {
     cancelledRef.current = true;
+    installControllerRef.current?.abort();
+    installControllerRef.current = null;
     void workerRef.current?.terminate().catch(() => undefined);
     workerRef.current = null;
     onClose();
   }, [onClose]);
 
   const startOcr = async () => {
-    if (!target || status === 'running' || languages.length === 0) {
+    if (!target || status === 'running' || status === 'installing' || languages.length === 0) {
       return;
     }
     if (target.kind !== 'region' && !sourceAsset) {
@@ -169,6 +197,50 @@ export function OcrDialog({
     setResult('');
     setError(null);
     setCopied(false);
+
+    if (missingSelected.length > 0) {
+      setStatus('installing');
+      setInstallProgress(0);
+      let activePack: LanguagePack | null = null;
+      try {
+        for (const pack of missingSelected) {
+          if (cancelledRef.current) {
+            return;
+          }
+          activePack = pack;
+          setInstallingPack(pack);
+          setInstallProgress(0);
+          const controller = new AbortController();
+          installControllerRef.current = controller;
+          await installLanguagePack(
+            pack,
+            (value) => setInstallProgress(Math.min(Math.max(value, 0), 1)),
+            controller.signal,
+          );
+          installControllerRef.current = null;
+          setInstalledCodes((current) => new Set(current).add(pack.code));
+        }
+      } catch (installError) {
+        installControllerRef.current = null;
+        setInstallingPack(null);
+        if (cancelledRef.current || isAbortError(installError)) {
+          return;
+        }
+        setStatus('error');
+        setError(
+          t('ocr.packInstallFailed', {
+            language: activePack?.name ?? '',
+          }),
+        );
+        return;
+      }
+      if (cancelledRef.current) {
+        return;
+      }
+      setInstallingPack(null);
+      setInstallProgress(0);
+      setStatus('running');
+    }
 
     let renderer: PdfPageRenderer | null = null;
     let session: OcrSession | null = null;
@@ -262,19 +334,32 @@ export function OcrDialog({
   const isPdf = target?.kind === 'pdf';
   const percent = Math.round(progress * 100);
 
-  const optionalPacks = [...installedCodes]
-    .map((code) => getOptionalLanguagePack(code))
-    .filter((pack): pack is NonNullable<typeof pack> => Boolean(pack))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const optionalPacks = OPTIONAL_LANGUAGE_PACKS.map((pack) => ({
+    pack,
+    installed: installedCodes.has(pack.code),
+  })).sort((a, b) => a.pack.name.localeCompare(b.pack.name));
 
   const languageOptions = [
-    { code: 'eng', label: t('ocr.languageEnglish') },
-    { code: 'mya', label: t('ocr.languageBurmese') },
-    ...optionalPacks.map((pack) => ({
+    { code: 'eng', label: t('ocr.languageEnglish'), available: true },
+    { code: 'mya', label: t('ocr.languageBurmese'), available: true },
+    ...optionalPacks.map(({ pack, installed }) => ({
       code: pack.code,
-      label: `${pack.nativeName} (${pack.name})`,
+      label: installed
+        ? `${pack.nativeName} (${pack.name})`
+        : `${pack.nativeName} (${pack.name}) · ${t('ocr.packDownload', {
+            size: formatBytes(pack.size),
+          })}`,
+      available: installed,
     })),
   ];
+
+  const missingSelected = packsReady
+    ? languages
+        .map((code) => getOptionalLanguagePack(code))
+        .filter(
+          (pack): pack is LanguagePack => pack !== undefined && !installedCodes.has(pack.code),
+        )
+    : [];
 
   const toggleLanguage = (code: string, checked: boolean) => {
     const next = checked
@@ -291,37 +376,47 @@ export function OcrDialog({
     }
   };
 
-  const footer =
-    status === 'running' ? (
-      <Button variant="danger" onClick={cancelOcr}>
-        {t('ocr.cancel')}
+  const busy = status === 'running' || status === 'installing';
+
+  const footer = busy ? (
+    <Button variant="danger" onClick={cancelOcr}>
+      {t('ocr.cancel')}
+    </Button>
+  ) : (
+    <>
+      <Button variant="ghost" onClick={handleClose}>
+        {t('common.close')}
       </Button>
-    ) : (
-      <>
-        <Button variant="ghost" onClick={handleClose}>
-          {t('common.close')}
-        </Button>
-        {result ? (
-          <Button
-            variant="primary"
-            onClick={() => {
-              onInsert(result);
-              handleClose();
-            }}
-          >
-            {t('ocr.insert')}
-          </Button>
-        ) : null}
+      {result ? (
         <Button
-          variant={result ? 'secondary' : 'primary'}
-          onClick={() => void startOcr()}
-          disabled={!target || languages.length === 0 || (target.kind !== 'region' && !sourceAsset)}
+          variant="primary"
+          onClick={() => {
+            onInsert(result);
+            handleClose();
+          }}
         >
-          <ScanText size={16} aria-hidden="true" />
-          {status === 'idle' ? t('ocr.start') : t('ocr.retry')}
+          {t('ocr.insert')}
         </Button>
-      </>
-    );
+      ) : null}
+      <Button
+        variant={result ? 'secondary' : 'primary'}
+        onClick={() => void startOcr()}
+        disabled={
+          !target ||
+          !packsReady ||
+          languages.length === 0 ||
+          (target.kind !== 'region' && !sourceAsset)
+        }
+      >
+        <ScanText size={16} aria-hidden="true" />
+        {missingSelected.length > 0
+          ? t('ocr.installAndStart')
+          : status === 'idle'
+            ? t('ocr.start')
+            : t('ocr.retry')}
+      </Button>
+    </>
+  );
 
   return (
     <Dialog
@@ -342,7 +437,7 @@ export function OcrDialog({
                     <input
                       type="checkbox"
                       checked={languages.includes(option.code)}
-                      disabled={status === 'running'}
+                      disabled={busy || (!option.available && !packsReady)}
                       onChange={(event) => toggleLanguage(option.code, event.target.checked)}
                     />
                     <span>{option.label}</span>
@@ -366,7 +461,7 @@ export function OcrDialog({
                   id="ocr-scope"
                   className={styles.select}
                   value={scope}
-                  disabled={status === 'running'}
+                  disabled={busy}
                   onChange={(event) => {
                     setScope(event.target.value === 'all' ? 'all' : 'current');
                     resetOutput();
@@ -381,6 +476,20 @@ export function OcrDialog({
 
           {target.kind === 'region' && previewUrl ? (
             <img className={styles.previewImage} src={previewUrl} alt={t('ocr.regionLabel')} />
+          ) : null}
+
+          {status === 'installing' ? (
+            <div className={styles.progressArea} role="status" aria-live="polite">
+              <progress
+                className={styles.progress}
+                value={Math.round(installProgress * 100)}
+                max={100}
+              />
+              <div className={styles.progressLabels}>
+                <span>{t('ocr.installingPack', { language: installingPack?.name ?? '' })}</span>
+                <span>{Math.round(installProgress * 100)}%</span>
+              </div>
+            </div>
           ) : null}
 
           {status === 'running' ? (
