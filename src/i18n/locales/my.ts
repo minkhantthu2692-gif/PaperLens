@@ -116,7 +116,7 @@ export const my: Widen<typeof en> = {
     textSource: 'စာသားမူရင်း',
     imageSource: 'ရုပ်ပုံမူရင်း',
     pdfSource: 'PDF မူရင်း',
-    sourceMeta: '{{name}} · {{size}}',
+    editorActions: 'တည်းဖြတ်စနစ် လုပ်ဆောင်ချက်များ',
     splitter: 'မူရင်းနှင့် တည်းဖြတ်စနစ် အကန့်များကို အရွယ်ညှိမည်',
     showSource: 'မူရင်း',
     showEditor: 'တည်းဖြတ်စနစ်',

@@ -109,7 +109,7 @@ export const en = {
     textSource: 'Text source',
     imageSource: 'Image source',
     pdfSource: 'PDF source',
-    sourceMeta: '{{name}} · {{size}}',
+    editorActions: 'Editor actions',
     splitter: 'Resize source and editor panels',
     showSource: 'Source',
     showEditor: 'Editor',

@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Button } from '@/components/ui/Button';
 import type { Editor } from '@tiptap/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import '@/i18n';
@@ -39,6 +40,25 @@ beforeEach(async () => {
 });
 
 describe('Editor paragraph alignment', () => {
+  it('keeps contextual actions in the panel header, separate from formatting controls', () => {
+    render(
+      <EditorPanel
+        documentId="alignment-test"
+        initialContent={initialContent}
+        headerActions={<Button aria-label="Translate action">Translate</Button>}
+        onEditorReady={() => undefined}
+        onSaveStateChange={() => undefined}
+        onAiRequest={() => undefined}
+      />,
+    );
+
+    const header = screen.getByRole('group', { name: 'Editor actions' });
+    expect(header).toContainElement(screen.getByRole('button', { name: 'Translate action' }));
+    expect(screen.getByRole('toolbar', { name: 'Document editor' })).not.toContainElement(
+      screen.getByRole('button', { name: 'Translate action' }),
+    );
+  });
+
   it('offers four alignments and aligns the current paragraph', async () => {
     const user = userEvent.setup();
     renderEditor();

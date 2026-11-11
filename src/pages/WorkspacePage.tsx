@@ -11,7 +11,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { Editor } from '@tiptap/react';
 import {
   AlertCircle,
-  ChevronDown,
   Download,
   Eraser,
   Focus,
@@ -511,98 +510,6 @@ export default function WorkspacePage() {
             />
           }
           subtitle={saveLabel}
-          actions={
-            <div className={styles.topActions}>
-              {fullWorkspaceEnabled ? (
-                <Button
-                  ref={focusToggleRef}
-                  variant="ghost"
-                  size="sm"
-                  iconOnly
-                  onClick={() => setFocusMode(true)}
-                  disabled={!editorReady}
-                  aria-label={t('workspace.focusMode')}
-                  title={t('workspace.focusMode')}
-                  aria-pressed={isFocusMode}
-                >
-                  <Focus size={17} aria-hidden="true" />
-                </Button>
-              ) : null}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleOpenCleanup}
-                disabled={!editorReady}
-              >
-                <Eraser size={16} aria-hidden="true" />
-                {t('workspace.cleanup')}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setTranslatorOpen(true)}
-                disabled={!editorReady}
-              >
-                <Languages size={16} aria-hidden="true" />
-                {t('translator.open')}
-              </Button>
-              <div className={styles.exportWrap} ref={menuRef}>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  aria-haspopup="menu"
-                  aria-expanded={exportOpen}
-                  onClick={() => setExportOpen((value) => !value)}
-                  disabled={exporting}
-                  aria-busy={exporting}
-                >
-                  <Download size={16} aria-hidden="true" />
-                  {exporting ? t('workspace.exporting') : t('workspace.export')}
-                  <ChevronDown size={14} aria-hidden="true" />
-                </Button>
-                {exportOpen ? (
-                  <div className={styles.menu} role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={styles.menuItem}
-                      onClick={() => void handleExport('txt')}
-                    >
-                      <FileText size={16} aria-hidden="true" />
-                      {t('workspace.exportTxt')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={styles.menuItem}
-                      onClick={() => void handleExport('html')}
-                    >
-                      <FileType2 size={16} aria-hidden="true" />
-                      {t('workspace.exportHtml')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={styles.menuItem}
-                      onClick={() => void handleExport('docx')}
-                    >
-                      <FileType size={16} aria-hidden="true" />
-                      {t('workspace.exportDocx')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={styles.menuItem}
-                      onClick={() => void handleExport('pdf')}
-                    >
-                      <Printer size={16} aria-hidden="true" />
-                      {t('workspace.exportPdf')}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          }
         />
       </div>
 
@@ -712,6 +619,103 @@ export default function WorkspacePage() {
             documentId={document.id}
             initialContent={document.editor}
             fullWorkspace={isFocusMode}
+            headerActions={
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  onClick={() => setTranslatorOpen(true)}
+                  disabled={!editorReady}
+                  aria-label={t('translator.open')}
+                  title={t('translator.open')}
+                >
+                  <Languages size={16} aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  onClick={handleOpenCleanup}
+                  disabled={!editorReady}
+                  aria-label={t('workspace.cleanup')}
+                  title={t('workspace.cleanup')}
+                >
+                  <Eraser size={16} aria-hidden="true" />
+                </Button>
+                <div className={styles.exportWrap} ref={menuRef}>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    iconOnly
+                    aria-label={exporting ? t('workspace.exporting') : t('workspace.export')}
+                    title={exporting ? t('workspace.exporting') : t('workspace.export')}
+                    aria-haspopup="menu"
+                    aria-expanded={exportOpen}
+                    onClick={() => setExportOpen((value) => !value)}
+                    disabled={exporting}
+                    aria-busy={exporting}
+                  >
+                    <Download size={16} aria-hidden="true" />
+                  </Button>
+                  {exportOpen ? (
+                    <div className={styles.menu} role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles.menuItem}
+                        onClick={() => void handleExport('txt')}
+                      >
+                        <FileText size={16} aria-hidden="true" />
+                        {t('workspace.exportTxt')}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles.menuItem}
+                        onClick={() => void handleExport('html')}
+                      >
+                        <FileType2 size={16} aria-hidden="true" />
+                        {t('workspace.exportHtml')}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles.menuItem}
+                        onClick={() => void handleExport('docx')}
+                      >
+                        <FileType size={16} aria-hidden="true" />
+                        {t('workspace.exportDocx')}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles.menuItem}
+                        onClick={() => void handleExport('pdf')}
+                      >
+                        <Printer size={16} aria-hidden="true" />
+                        {t('workspace.exportPdf')}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                {fullWorkspaceEnabled ? (
+                  <Button
+                    ref={focusToggleRef}
+                    variant={isFocusMode ? 'secondary' : 'ghost'}
+                    size="sm"
+                    iconOnly
+                    onClick={() => setFocusMode(!isFocusMode)}
+                    disabled={!editorReady}
+                    aria-label={t(isFocusMode ? 'workspace.exitFocusMode' : 'workspace.focusMode')}
+                    title={t(isFocusMode ? 'workspace.exitFocusMode' : 'workspace.focusMode')}
+                    aria-pressed={isFocusMode}
+                  >
+                    <Focus size={16} aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </>
+            }
             onEditorReady={handleEditorReady}
             onSaveStateChange={handleSaveStateChange}
             onAiRequest={handleAiRequest}

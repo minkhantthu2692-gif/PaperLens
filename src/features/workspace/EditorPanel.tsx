@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import {
   AlignJustify,
@@ -44,6 +44,7 @@ interface EditorPanelProps {
   onEditorReady: (editor: Editor | null) => void;
   onSaveStateChange: (state: SaveState) => void;
   onAiRequest: (selection: EditorSelectionContext) => void;
+  headerActions?: ReactNode;
 }
 
 interface AiBubblePosition {
@@ -69,6 +70,7 @@ export function EditorPanel({
   onEditorReady,
   onSaveStateChange,
   onAiRequest,
+  headerActions,
 }: EditorPanelProps) {
   const { t } = useTranslation();
   const [stats, setStats] = useState({ words: 0, characters: 0 });
@@ -246,8 +248,19 @@ export function EditorPanel({
       aria-label={t('workspace.editor')}
     >
       <header className={styles.panelHeader}>
-        <PenLine size={16} aria-hidden="true" />
-        <span>{t('workspace.editor')}</span>
+        <div className={styles.headerTitle}>
+          <PenLine size={16} aria-hidden="true" />
+          <span>{t('workspace.editor')}</span>
+        </div>
+        {headerActions ? (
+          <div
+            className={styles.headerActions}
+            role="group"
+            aria-label={t('workspace.editorActions')}
+          >
+            {headerActions}
+          </div>
+        ) : null}
       </header>
 
       <div

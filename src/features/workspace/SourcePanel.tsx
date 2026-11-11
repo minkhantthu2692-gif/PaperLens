@@ -218,13 +218,13 @@ export function SourcePanel({
   return (
     <section className={styles.shell} aria-label={t('workspace.source')}>
       <header className={styles.panelHeader}>
-        <KindIcon size={16} aria-hidden="true" />
-        <span>{kindLabel}</span>
+        <span className={styles.panelTitle}>
+          <KindIcon size={16} aria-hidden="true" />
+          <span>{kindLabel}</span>
+        </span>
         <span className={styles.meta} title={asset.fileName}>
-          {t('workspace.sourceMeta', {
-            name: asset.fileName,
-            size: formatBytes(asset.size),
-          })}
+          <span className={styles.fileName}>{asset.fileName}</span>
+          <span className={styles.fileSize}>{formatBytes(asset.size)}</span>
         </span>
       </header>
 

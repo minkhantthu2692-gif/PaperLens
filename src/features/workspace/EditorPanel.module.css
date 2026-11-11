@@ -53,6 +53,8 @@
   flex: none;
   gap: var(--space-2);
   align-items: center;
+  justify-content: space-between;
+  min-width: 0;
   min-height: 2.75rem;
   padding: 0 var(--space-4);
   font-size: var(--font-size-xs);
@@ -61,6 +63,25 @@
   text-transform: uppercase;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.headerTitle {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-2);
+  align-items: center;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.headerActions > button {
+  flex: none;
 }
 
 .toolbar {
@@ -73,6 +94,32 @@
   overflow-x: auto;
   border-bottom: 1px solid var(--color-border-subtle);
   background-color: var(--color-bg-subtle);
+}
+
+@media (max-width: 40rem) {
+  .panelHeader {
+    gap: var(--space-1);
+    flex-wrap: wrap;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .headerTitle {
+    gap: var(--space-1);
+  }
+
+  .headerActions {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: 0;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  .headerActions > button {
+    width: 1.875rem;
+    min-width: 1.875rem;
+    min-height: 1.875rem;
+  }
 }
 
 .toolbar button {
