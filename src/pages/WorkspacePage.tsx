@@ -24,12 +24,12 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { TopBar } from '@/components/layout/TopBar';
 import { FocusModeExitControl } from '@/components/layout/FocusModeExitControl';
 import { useFocusMode } from '@/components/layout/FocusModeContext';
 import { Button } from '@/components/ui/Button';
 import type { DocumentRecord, SourceAsset } from '@/domain/document';
 import { AiAssistantDialog } from '@/features/ai/AiAssistantDialog';
+import { ImageRefineDialog, type RefinedImageResult } from '@/features/image/ImageRefineDialog';
 import { TranslatorDialog } from '@/features/translator/TranslatorDialog';
 import { CleanupDialog, type CleanupScope } from '@/features/editor/CleanupDialog';
 import { OcrDialog, type OcrTarget } from '@/features/ocr/OcrDialog';
@@ -46,10 +46,13 @@ import {
   printDocument,
 } from '@/services/export/exportDocument';
 import { textToHtmlParagraphs } from '@/services/text/cleanup';
+import { sanitizeFileName } from '@/lib/file';
 import {
+  clearRefinedImage,
   getDocument,
   getSourceAsset,
   renameDocument,
+  saveRefinedImage,
   updateDocumentSourcePageCount,
 } from '@/services/storage/documents';
 import styles from './WorkspacePage.module.css';
@@ -97,6 +100,8 @@ export default function WorkspacePage() {
   const [mobilePanel, setMobilePanel] = useState<'source' | 'editor'>('editor');
   const [ocrTarget, setOcrTarget] = useState<OcrTarget | null>(null);
   const [editorReady, setEditorReady] = useState(false);
+  const [refineOpen, setRefineOpen] = useState(false);
+  const [refinedAsset, setRefinedAsset] = useState<SourceAsset | null>(null);
   const [cleanupSource, setCleanupSource] = useState<{
     text: string;
     scope: CleanupScope;
@@ -131,6 +136,12 @@ export default function WorkspacePage() {
   }, [isFocusMode]);
 
   useEffect(() => {
+    // Document-scoped dialogs must not carry over when switching documents.
+    setRefineOpen(false);
+    setOcrTarget(null);
+  }, [documentId]);
+
+  useEffect(() => {
     let cancelled = false;
     if (!documentId) {
       setLoading(false);
@@ -150,12 +161,16 @@ export default function WorkspacePage() {
           return;
         }
         const sourceAsset = await getSourceAsset(record.source.assetId);
+        const refined = record.source.refined
+          ? await getSourceAsset(record.source.refined.assetId)
+          : undefined;
         if (cancelled) {
           return;
         }
         setDocument(record);
         setTitle(record.title);
         setAsset(sourceAsset ?? null);
+        setRefinedAsset(refined ?? null);
         setLoading(false);
         if (!sourceAsset) {
           setError(translationRef.current('workspace.sourceError'));
@@ -312,6 +327,45 @@ export default function WorkspacePage() {
     },
     [documentId],
   );
+
+  const handleApplyRefinement = useCallback(
+    async (result: RefinedImageResult) => {
+      if (!document) {
+        throw new Error('Document is not loaded');
+      }
+      const isPng = result.blob.type === 'image/png';
+      const baseName = sanitizeFileName(document.source.fileName.replace(/\.[^.]+$/, ''));
+      const saved = await saveRefinedImage(document.id, {
+        blob: result.blob,
+        mimeType: result.blob.type || (isPng ? 'image/png' : 'image/jpeg'),
+        fileName: `${baseName}-refined.${isPng ? 'png' : 'jpg'}`,
+        width: result.width,
+        height: result.height,
+        preset: result.preset,
+        params: result.params,
+      });
+      if (!saved) {
+        throw new Error('Document not found');
+      }
+      setDocument(saved.document);
+      setRefinedAsset(saved.asset);
+      setRefineOpen(false);
+      setNotice(t('refine.applied'));
+    },
+    [document, t],
+  );
+
+  const handleRevertRefinement = useCallback(async () => {
+    if (!document) {
+      throw new Error('Document is not loaded');
+    }
+    const updated = await clearRefinedImage(document.id);
+    if (!updated) {
+      throw new Error('Document not found');
+    }
+    setDocument(updated);
+    setRefinedAsset(null);
+  }, [document]);
 
   const handleOcrPage = useCallback((pageNumber: number) => {
     setOcrTarget({ kind: 'pdf', pageNumber });
@@ -486,33 +540,6 @@ export default function WorkspacePage() {
 
   return (
     <div className={clsx(styles.page, isFocusMode && styles.focusMode)}>
-      <div className={styles.workspaceTopbar}>
-        <TopBar
-          onBack={() => navigate('/')}
-          backLabel={t('workspace.backToDocuments')}
-          title={
-            <input
-              className={styles.titleInput}
-              value={title}
-              maxLength={120}
-              aria-label={t('workspace.titleLabel')}
-              title={t('workspace.titleLabel')}
-              onChange={(event) => setTitle(event.target.value)}
-              onBlur={() => void commitTitle()}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.currentTarget.blur();
-                } else if (event.key === 'Escape') {
-                  setTitle(document.title);
-                  event.currentTarget.blur();
-                }
-              }}
-            />
-          }
-          subtitle={saveLabel}
-        />
-      </div>
-
       {error ? (
         <div className={styles.errorBanner} role="alert">
           <AlertCircle size={17} aria-hidden="true" />
@@ -585,6 +612,8 @@ export default function WorkspacePage() {
               onOcrImage={handleOcrImage}
               onOcrRegion={handleOcrRegion}
               onAiText={handleSourceAiText}
+              onRefineImage={() => setRefineOpen(true)}
+              hasRefinedImage={!!document.source.refined}
             />
           ) : (
             <p className={styles.panelFallback}>{t('workspace.sourceError')}</p>
@@ -618,6 +647,30 @@ export default function WorkspacePage() {
             key={document.id}
             documentId={document.id}
             initialContent={document.editor}
+            panelTitle={
+              <div className={styles.documentTitleGroup}>
+                <input
+                  className={styles.titleInput}
+                  value={title}
+                  maxLength={120}
+                  aria-label={t('workspace.titleLabel')}
+                  title={t('workspace.titleLabel')}
+                  onChange={(event) => setTitle(event.target.value)}
+                  onBlur={() => void commitTitle()}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.currentTarget.blur();
+                    } else if (event.key === 'Escape') {
+                      setTitle(document.title);
+                      event.currentTarget.blur();
+                    }
+                  }}
+                />
+                <span className={styles.saveState} data-state={saveState} role="status">
+                  {saveLabel}
+                </span>
+              </div>
+            }
             fullWorkspace={isFocusMode}
             headerActions={
               <>
@@ -732,6 +785,7 @@ export default function WorkspacePage() {
       <OcrDialog
         target={ocrTarget}
         sourceAsset={asset}
+        refinedAsset={refinedAsset}
         pdfPageCount={document.source.pageCount ?? 1}
         onClose={() => setOcrTarget(null)}
         onInsert={handleInsertText}
@@ -767,6 +821,23 @@ export default function WorkspacePage() {
           navigate('/settings');
         }}
       />
+
+      {asset && asset.mimeType.startsWith('image/') ? (
+        <ImageRefineDialog
+          open={refineOpen}
+          asset={asset}
+          hasSavedRefinement={!!document.source.refined}
+          savedParams={document.source.refined?.params ?? null}
+          savedPreset={document.source.refined?.preset ?? null}
+          onClose={() => setRefineOpen(false)}
+          onApply={handleApplyRefinement}
+          onRevert={handleRevertRefinement}
+          onOpenSettings={() => {
+            setRefineOpen(false);
+            navigate('/settings');
+          }}
+        />
+      ) : null}
     </div>
   );
 }

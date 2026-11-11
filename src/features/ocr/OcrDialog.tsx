@@ -31,6 +31,8 @@ type OcrStatus = 'idle' | 'running' | 'installing' | 'cancelled' | 'done' | 'err
 interface OcrDialogProps {
   target: OcrTarget | null;
   sourceAsset: SourceAsset | null;
+  /** Optional refined copy of an image source. OCR works with either version. */
+  refinedAsset?: SourceAsset | null;
   pdfPageCount?: number | undefined;
   onClose: () => void;
   onInsert: (text: string) => void;
@@ -57,6 +59,7 @@ function readOcrLanguages(): string[] {
 export function OcrDialog({
   target,
   sourceAsset,
+  refinedAsset = null,
   pdfPageCount,
   onClose,
   onInsert,
@@ -64,6 +67,7 @@ export function OcrDialog({
 }: OcrDialogProps) {
   const { t } = useTranslation();
   const [languages, setLanguages] = useState<string[]>(readOcrLanguages);
+  const [imageSource, setImageSource] = useState<'original' | 'refined'>('original');
   const [installedCodes, setInstalledCodes] = useState<Set<string>>(new Set());
   const [packsReady, setPacksReady] = useState(false);
   const [scope, setScope] = useState<'current' | 'all'>('current');
@@ -90,7 +94,8 @@ export function OcrDialog({
     setError(null);
     setCopied(false);
     setScope('current');
-  }, [target]);
+    setImageSource(refinedAsset ? 'refined' : 'original');
+  }, [target, refinedAsset]);
 
   useEffect(() => {
     if (!target) {
@@ -252,10 +257,11 @@ export function OcrDialog({
       if (target.kind === 'region') {
         images = [target.blob];
       } else if (target.kind === 'image') {
-        if (!sourceAsset) {
+        const chosen = imageSource === 'refined' && refinedAsset ? refinedAsset : sourceAsset;
+        if (!chosen) {
           throw new Error('Source asset is missing');
         }
-        images = [sourceAsset.blob];
+        images = [chosen.blob];
       } else {
         if (!sourceAsset || sourceAsset.mimeType !== 'application/pdf') {
           throw new Error('PDF source is missing');
@@ -451,6 +457,32 @@ export function OcrDialog({
                 </Link>
               </p>
             </fieldset>
+
+            {target?.kind === 'image' && refinedAsset ? (
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="ocr-image-version">
+                  {t('ocr.imageVersion')}
+                </label>
+                <select
+                  id="ocr-image-version"
+                  className={styles.select}
+                  value={imageSource}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setImageSource(event.target.value === 'refined' ? 'refined' : 'original');
+                    resetOutput();
+                  }}
+                >
+                  <option value="original">{t('ocr.imageVersionOriginal')}</option>
+                  <option value="refined">
+                    {t('ocr.imageVersionRefined', {
+                      size: formatBytes(refinedAsset.size),
+                    })}
+                  </option>
+                </select>
+                <p className={styles.hint}>{t('ocr.imageVersionHint')}</p>
+              </div>
+            ) : null}
 
             {isPdf && (pdfPageCount ?? 1) > 1 ? (
               <div className={styles.field}>

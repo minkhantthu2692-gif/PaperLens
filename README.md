@@ -38,6 +38,7 @@ product specification.
 | Editor        | Tiptap (rich text, local autosave)                           |
 | Source viewer | PDF.js (canvas, text layer, regions)                         |
 | OCR           | Tesseract.js 7, worker-based, bundled EN/MY + verified packs |
+| Image refine  | On-device canvas/worker pipeline (no extra dependency)       |
 | AI            | Direct browser-to-provider adapters, BYOK, no proxy          |
 | Tests         | Vitest + Testing Library + jsdom                             |
 
@@ -56,6 +57,16 @@ product specification.
 - Optional OCR language packs managed in Settings: download a curated language, verify its
   SHA-256 checksum against a pinned `tessdata_fast` revision, store it locally for offline OCR,
   or remove it at any time.
+- Optional Image Refinement Studio for image sources, opened from the Source toolbar. It runs
+  entirely on-device in a Web Worker: auto enhance, deskew/fine rotation, perspective corner
+  correction, denoise, brightness/contrast, grayscale, adaptive threshold, sharpen, shadow
+  removal, and conservative page dewarping, with presets for documents, handwriting, old
+  scans, camera photos, and low-contrast pages. Before/after comparison, undo/redo, reset,
+  revert, and full-resolution apply are included. A refined copy is stored as a separate
+  asset; the original is never modified, applying does not trigger OCR, and OCR can use either
+  the original or the refined image. Optional AI image analysis/enhancement reuses the
+  configured provider and key, sends only a downscaled copy on request, and applies its
+  suggested settings to the local controls.
 - Deterministic offline cleanup with a before/after preview: Unicode and whitespace
   normalization, conservative line-end hyphenation repair, OCR line reflow, and optional
   duplicate-line removal. Applied changes are ordinary editor edits, so Undo reverts them.
@@ -93,9 +104,15 @@ Current limitations: PDF text selection is approximate. OCR accuracy varies with
 and has not yet been validated against a representative English/Burmese corpus in this
 environment. Optional packs come from a curated list and are checksum-verified, but the
 checksums and pinned revision must be updated manually. Cleanup tools are conservative
-heuristics, not AI, and may still need manual review. AI actions run on editor selections or
-source page/document text, depend on provider CORS/browser support, and cannot enforce
-provider-side quotas or billing.
+heuristics, not AI, and may still need manual review. Image refinement is deterministic,
+non-destructive, and optional; quality measurements are estimates, aggressive binarization
+can erase handwriting detail, and page dewarping remains experimental. Applying a refinement
+processes up to 4096 px on the longest edge to bound memory use.
+AI actions run on editor selections or source page/document text, depend on provider
+CORS/browser support, and cannot enforce provider-side quotas or billing. AI image analysis
+requires a vision-capable model; the app can gate on the provider, but not every model on a
+provider accepts images, so unsupported models surface a clear provider error. AI image
+enhancement returns suggested local settings, not generated pixels.
 Direct PDF file generation is not implemented; PDF export uses the browser print dialog. The
 service worker does not add background sync or push notifications, and PWA behavior still
 needs verification on representative mobile browsers. DOCX round-trip fidelity for very
@@ -204,8 +221,8 @@ workers require HTTPS (or localhost), so test installation against a deployed bu
 - OCR runs in a browser worker with bundled or locally installed language models; source pages
   are not uploaded. Installing an optional pack downloads only the model file from the pinned
   `tessdata_fast` revision in a user-initiated request.
-- AI requests are user-initiated and send only the selected text or source text the user chose
-  directly to the configured provider. Keys stay in session storage by default; remember-key
+- AI requests are user-initiated and send only the selected text, source text, or downscaled
+  image the user chose directly to the configured provider. Keys stay in session storage by default; remember-key
   is opt-in and stores the key in browser storage. Keys and document text are never logged,
   backed up, or proxied. If the exact-match AI cache is enabled, the normalized text and
   result are stored locally in IndexedDB until they expire or you clear the cache.

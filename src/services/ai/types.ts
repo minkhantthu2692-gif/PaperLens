@@ -17,6 +17,19 @@ export const AI_TASK_IDS = ['cleanup', 'proofread', 'rewrite', 'summarize', 'tra
 
 export type AiTaskId = (typeof AI_TASK_IDS)[number];
 
+/** Tasks that send an image to a vision-capable provider. */
+export const AI_IMAGE_TASK_IDS = ['image-analysis', 'image-enhance'] as const;
+
+export type AiImageTaskId = (typeof AI_IMAGE_TASK_IDS)[number];
+
+export type AiRequestTask = AiTaskId | AiImageTaskId;
+
+export interface AiImageInput {
+  /** Data URL (`data:image/jpeg;base64,…`) of the image sent to the provider. */
+  dataUrl: string;
+  mimeType: string;
+}
+
 export interface AiGuardrails {
   maxInputChars: number;
   maxOutputTokens: number;
@@ -46,11 +59,13 @@ export interface AiSettings {
 export interface AiRequestOptions {
   settings: AiSettings;
   apiKey: string;
-  task: AiTaskId;
+  task: AiRequestTask;
   text: string;
   targetLanguage?: string;
   sourceLanguage?: string;
   detectSourceLanguage?: boolean;
+  /** Optional image for the image tasks. Image requests are never cached. */
+  image?: AiImageInput;
   signal?: AbortSignal;
 }
 
@@ -97,4 +112,8 @@ export function isAiProviderId(value: string | null | undefined): value is AiPro
 
 export function isAiTaskId(value: string | null | undefined): value is AiTaskId {
   return !!value && (AI_TASK_IDS as readonly string[]).includes(value);
+}
+
+export function isAiImageTaskId(value: string | null | undefined): value is AiImageTaskId {
+  return !!value && (AI_IMAGE_TASK_IDS as readonly string[]).includes(value);
 }

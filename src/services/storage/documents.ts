@@ -6,6 +6,7 @@ import {
   type SourceAsset,
   type SourceKind,
 } from '@/domain/document';
+import type { RefinementParams, RefinementPresetId } from '@/domain/refinement';
 import { createId } from '@/lib/id';
 import { getDatabase } from './db';
 
@@ -119,6 +120,98 @@ export async function updateDocumentSourcePageCount(id: string, pageCount: numbe
   await transaction.done;
 }
 
+export interface SaveRefinedImageInput {
+  blob: Blob;
+  mimeType: string;
+  fileName: string;
+  width: number;
+  height: number;
+  preset: RefinementPresetId | null;
+  params: RefinementParams;
+}
+
+/**
+ * Stores a refined image version next to the untouched original. The previous
+ * refined version, if any, is replaced so only one derived copy is kept.
+ */
+export async function saveRefinedImage(
+  documentId: string,
+  input: SaveRefinedImageInput,
+): Promise<{ document: DocumentRecord; asset: SourceAsset } | undefined> {
+  const database = await getDatabase();
+  const transaction = database.transaction(['documents', 'assets'], 'readwrite');
+  const documents = transaction.objectStore('documents');
+  const assets = transaction.objectStore('assets');
+  const existing = await documents.get(documentId);
+  if (!existing) {
+    await transaction.done;
+    return undefined;
+  }
+
+  const now = Date.now();
+  const asset: SourceAsset = {
+    id: createId(),
+    blob: input.blob,
+    mimeType: input.mimeType,
+    fileName: input.fileName,
+    size: input.blob.size,
+    createdAt: now,
+  };
+  await assets.put(asset);
+
+  const previousAssetId = existing.source.refined?.assetId;
+  if (previousAssetId) {
+    await assets.delete(previousAssetId);
+  }
+
+  const updated: DocumentRecord = {
+    ...existing,
+    schemaVersion: DOCUMENT_SCHEMA_VERSION,
+    updatedAt: now,
+    source: {
+      ...existing.source,
+      refined: {
+        assetId: asset.id,
+        mimeType: input.mimeType,
+        fileName: input.fileName,
+        size: asset.size,
+        width: input.width,
+        height: input.height,
+        appliedAt: now,
+        preset: input.preset,
+        params: input.params,
+      },
+    },
+  };
+  await documents.put(updated);
+  await transaction.done;
+  return { document: updated, asset };
+}
+
+/** Removes the derived refined image while keeping the original source intact. */
+export async function clearRefinedImage(documentId: string): Promise<DocumentRecord | undefined> {
+  const database = await getDatabase();
+  const transaction = database.transaction(['documents', 'assets'], 'readwrite');
+  const documents = transaction.objectStore('documents');
+  const assets = transaction.objectStore('assets');
+  const existing = await documents.get(documentId);
+  if (!existing) {
+    await transaction.done;
+    return undefined;
+  }
+
+  const refinedAssetId = existing.source.refined?.assetId;
+  if (refinedAssetId) {
+    await assets.delete(refinedAssetId);
+  }
+  const source = { ...existing.source };
+  delete source.refined;
+  const updated: DocumentRecord = { ...existing, source, updatedAt: Date.now() };
+  await documents.put(updated);
+  await transaction.done;
+  return updated;
+}
+
 export async function deleteDocument(id: string): Promise<void> {
   const database = await getDatabase();
   const transaction = database.transaction(['documents', 'assets'], 'readwrite');
@@ -127,6 +220,10 @@ export async function deleteDocument(id: string): Promise<void> {
   if (document) {
     await documents.delete(id);
     await transaction.objectStore('assets').delete(document.source.assetId);
+    const refinedAssetId = document.source.refined?.assetId;
+    if (refinedAssetId) {
+      await transaction.objectStore('assets').delete(refinedAssetId);
+    }
   }
   await transaction.done;
 }

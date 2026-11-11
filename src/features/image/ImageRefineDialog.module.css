@@ -1,0 +1,341 @@
+.dialog {
+  width: min(72rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  overflow: auto;
+}
+
+.body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.toolbarGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1.2fr) minmax(17rem, 0.9fr);
+  align-items: start;
+}
+
+.previewColumn,
+.controlsColumn {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.controlsColumn {
+  max-height: 62vh;
+  padding-right: var(--space-1);
+  overflow-y: auto;
+}
+
+.viewSwitch {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.compareStage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--color-bg-inset);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.compareImage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.compareImageOverlay {
+  z-index: 1;
+}
+
+.compareImageFull {
+  clip-path: none;
+}
+
+.processingBadge {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 2;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-xs);
+}
+
+.compareControl {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.section {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.control {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.controlHeader {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.controlLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.controlValue {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+
+.toggle {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.toggle input {
+  accent-color: var(--color-accent);
+}
+
+.hint {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-secondary);
+}
+
+.metrics {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  margin: 0;
+}
+
+.metric {
+  display: grid;
+  gap: 2px;
+}
+
+.metric dt {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+}
+
+.metric dd {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.issueList {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.issue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  background-color: var(--color-bg-surface);
+  border-left: 3px solid var(--color-border-strong);
+  border-radius: var(--radius-xs);
+}
+
+.issue[data-severity='high'] {
+  border-left-color: var(--color-danger);
+}
+
+.issue[data-severity='medium'] {
+  border-left-color: var(--color-warning);
+}
+
+.issue[data-severity='low'] {
+  border-left-color: var(--color-border-strong);
+}
+
+.issueCode {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.issueSeverity {
+  color: var(--color-text-secondary);
+}
+
+.issueDetail {
+  flex: 1 1 100%;
+  color: var(--color-text-secondary);
+}
+
+.aiResult {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.aiSummary {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-primary);
+}
+
+.alert {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+  background-color: var(--color-danger-soft);
+  border-radius: var(--radius-sm);
+}
+
+.alert svg {
+  flex: none;
+}
+
+.notice {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-on-accent);
+  background-color: var(--color-accent);
+  border-radius: var(--radius-sm);
+}
+
+.perspectiveWrap {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.perspectiveStage {
+  position: relative;
+  width: 100%;
+  max-height: 16rem;
+  margin: 0 auto;
+  overflow: hidden;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.perspectiveImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.perspectiveOutline {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.perspectiveOutline polygon {
+  fill: rgb(99 102 241 / 0.12);
+  stroke: var(--color-accent);
+  stroke-width: 2;
+}
+
+.perspectiveHandle {
+  position: absolute;
+  z-index: 2;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  background-color: var(--color-bg-surface);
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-xs);
+  cursor: grab;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+}
+
+.perspectiveHandle:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 62rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .controlsColumn {
+    max-height: none;
+    overflow: visible;
+  }
+}

@@ -1,4 +1,6 @@
-export const DOCUMENT_SCHEMA_VERSION = 1;
+import type { RefinedImageInfo } from './refinement';
+
+export const DOCUMENT_SCHEMA_VERSION = 2;
 
 export type SourceKind = 'pdf' | 'image' | 'text';
 
@@ -9,6 +11,11 @@ export interface SourceReference {
   fileName: string;
   size: number;
   pageCount?: number;
+  /**
+   * Optional refined copy of an image source. The original asset above is never
+   * overwritten; OCR can use either version.
+   */
+  refined?: RefinedImageInfo;
 }
 
 export interface EditorContent {

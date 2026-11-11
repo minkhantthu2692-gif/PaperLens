@@ -91,6 +91,40 @@ async function clickStart(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('OcrDialog', () => {
+  it('lets the user choose between the original and refined image', async () => {
+    const user = userEvent.setup();
+    const refined: SourceAsset = {
+      ...asset,
+      id: 'asset-refined',
+      blob: new Blob(['refined-image'], { type: 'image/png' }),
+      fileName: 'scan-refined.png',
+    };
+    ocrMocks.recognize.mockResolvedValue('Recognized text');
+    render(
+      <MemoryRouter>
+        <OcrDialog
+          target={{ kind: 'image' }}
+          sourceAsset={asset}
+          refinedAsset={refined}
+          onClose={vi.fn()}
+          onInsert={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    const select = await screen.findByLabelText('Image to recognize');
+    expect(select).toHaveValue('refined');
+
+    await clickStart(user);
+    expect(ocrMocks.recognize).toHaveBeenCalledWith(refined.blob, expect.any(Function));
+
+    await user.selectOptions(select, 'original');
+    await user.click(await screen.findByRole('button', { name: 'Start OCR' }));
+    await waitFor(() =>
+      expect(ocrMocks.recognize).toHaveBeenLastCalledWith(asset.blob, expect.any(Function)),
+    );
+  });
+
   it('recognizes text and inserts the reconstructed result', async () => {
     const user = userEvent.setup();
     const onInsert = vi.fn();

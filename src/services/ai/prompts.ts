@@ -1,4 +1,4 @@
-import type { AiTaskId } from './types';
+import type { AiImageTaskId, AiTaskId } from './types';
 
 export const AI_PROMPT_VERSION = 2;
 
@@ -24,6 +24,28 @@ const TASK_INSTRUCTIONS: Record<Exclude<AiTaskId, 'translate'>, string> = {
   summarize:
     'Summarize the key points of the text clearly and concisely. Do not add facts that are not present in the source.',
 };
+
+const IMAGE_BASE_SYSTEM_PROMPT = [
+  'You are a document imaging assistant that evaluates scan quality.',
+  'You only describe image quality and locally applied image-processing settings.',
+  'Never transcribe, translate, or reproduce the document text.',
+  'Never invent content. Reply with JSON only; do not use Markdown code fences.',
+].join(' ');
+
+const IMAGE_ISSUE_SCHEMA =
+  'Return a JSON object with exactly these properties: "summary" (one or two short sentences), "issues" (array of at most 6 objects with "code" from [low-light, over-exposed, low-contrast, blur, noise, skew, uneven-lighting, faint-text, curvature, perspective, handwriting, difficult-regions], "severity" from [low, medium, high] and an optional "detail" of at most 120 characters), "recommendedPreset" (one of [document, handwriting, old-scan, camera, low-contrast] or null) and "recommendations" (object containing any of: autoEnhance boolean, rotation degrees between -180 and 180, deskew boolean, denoise 0-100, brightness -100-100, contrast -100-100, grayscale boolean, binarize "none" or "adaptive", threshold 0-100, sharpen 0-100, shadowRemoval boolean, dewarp boolean).';
+
+/** Prompt for the image analysis and image enhancement tasks. */
+export function buildImageAiPrompt(task: AiImageTaskId): AiPrompt {
+  const instruction =
+    task === 'image-analysis'
+      ? 'Analyze the attached document image and identify quality problems: blur, poor lighting (too dark or over-exposed), low contrast, uneven lighting or shadows, noise, skew or rotation, page curvature, perspective distortion, handwriting, and regions that look difficult to read. Also recommend locally applied refinement settings that would help.'
+      : 'Suggest the strongest locally applied refinement settings that would improve the legibility of the attached document image, while avoiding aggressive processing that would destroy handwriting or faint characters. Describe the remaining problems that cannot be fixed on-device.';
+  return {
+    system: `${IMAGE_BASE_SYSTEM_PROMPT} ${instruction}`,
+    user: `${IMAGE_ISSUE_SCHEMA} The document image is attached.`,
+  };
+}
 
 export function buildAiPrompt(
   task: AiTaskId,

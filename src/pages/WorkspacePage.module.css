@@ -5,22 +5,26 @@
   min-height: 0;
 }
 
-.workspaceTopbar {
-  flex: none;
-}
-
-.focusMode .workspaceTopbar {
-  display: none;
+.documentTitleGroup {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .titleInput {
-  width: 100%;
+  width: clamp(6rem, 20vw, 17rem);
   min-width: 0;
-  max-width: 28rem;
   padding: var(--space-1) var(--space-2);
   margin-left: calc(var(--space-2) * -1);
   font: inherit;
-  color: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   background-color: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -35,6 +39,20 @@
   border-color: var(--color-border-accent);
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
+}
+
+.saveState {
+  flex: none;
+  overflow: hidden;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saveState[data-state='error'] {
+  color: var(--color-danger);
 }
 
 .exportWrap {
@@ -241,7 +259,11 @@
 
 @media (max-width: 48rem) {
   .titleInput {
-    max-width: 45vw;
+    width: min(45vw, 12rem);
+  }
+
+  .saveState {
+    display: none;
   }
 
   .mobileTabs {

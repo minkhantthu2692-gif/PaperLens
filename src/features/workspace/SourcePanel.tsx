@@ -14,6 +14,7 @@ import {
   ScanLine,
   ScanText,
   Sparkles,
+  Wand2,
   X,
   ZoomIn,
   ZoomOut,
@@ -39,6 +40,10 @@ interface SourcePanelProps {
   onOcrImage: () => void;
   onOcrRegion: (blob: Blob) => void;
   onAiText: (text: string, scopeLabel: string) => void;
+  /** Opens the optional Image Refinement Studio for image sources. */
+  onRefineImage?: () => void;
+  /** Whether a refined copy already exists for this image source. */
+  hasRefinedImage?: boolean;
 }
 
 type PdfModule = typeof PdfJs;
@@ -200,6 +205,8 @@ export function SourcePanel({
   onOcrImage,
   onOcrRegion,
   onAiText,
+  onRefineImage,
+  hasRefinedImage = false,
 }: SourcePanelProps) {
   const { t } = useTranslation();
   const kindLabel =
@@ -239,7 +246,13 @@ export function SourcePanel({
           onAiText={onAiText}
         />
       ) : asset.mimeType.startsWith('image/') ? (
-        <ImageSource asset={asset} onOcrImage={onOcrImage} onOcrRegion={onOcrRegion} />
+        <ImageSource
+          asset={asset}
+          onOcrImage={onOcrImage}
+          onOcrRegion={onOcrRegion}
+          {...(onRefineImage ? { onRefineImage } : {})}
+          hasRefinedImage={hasRefinedImage}
+        />
       ) : (
         <TextSource asset={asset} onInsertText={onInsertText} onAiText={onAiText} />
       )}
@@ -736,10 +749,14 @@ function ImageSource({
   asset,
   onOcrImage,
   onOcrRegion,
+  onRefineImage,
+  hasRefinedImage,
 }: {
   asset: SourceAsset;
   onOcrImage: () => void;
   onOcrRegion: (blob: Blob) => void;
+  onRefineImage?: (() => void) | undefined;
+  hasRefinedImage: boolean;
 }) {
   const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
@@ -820,6 +837,17 @@ function ImageSource({
           </Button>
         </div>
         <div className={styles.toolGroup}>
+          {onRefineImage ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefineImage}
+              title={t('workspace.refineImageHint')}
+            >
+              <Wand2 size={15} aria-hidden="true" />
+              {hasRefinedImage ? t('workspace.refineImageUpdate') : t('workspace.refineImage')}
+            </Button>
+          ) : null}
           <Button variant="ghost" size="sm" onClick={onOcrImage}>
             <ScanText size={15} aria-hidden="true" />
             {t('workspace.ocrImage')}

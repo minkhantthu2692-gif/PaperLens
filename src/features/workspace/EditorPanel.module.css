@@ -67,9 +67,10 @@
 
 .headerTitle {
   display: inline-flex;
-  flex: none;
+  flex: 1 1 auto;
   gap: var(--space-2);
   align-items: center;
+  min-width: 0;
   white-space: nowrap;
 }
 
@@ -104,6 +105,7 @@
   }
 
   .headerTitle {
+    flex: 1 1 100%;
     gap: var(--space-1);
   }
 

@@ -1,8 +1,19 @@
 import { buildAiCacheKey, readAiCache, writeAiCache } from './cache';
-import { buildChatRequest, parseChatResponse, resolveProviderBaseUrl } from './providers';
-import { buildAiPrompt } from './prompts';
+import {
+  buildChatRequest,
+  parseChatResponse,
+  providerSupportsImageInput,
+  resolveProviderBaseUrl,
+} from './providers';
+import { buildAiPrompt, buildImageAiPrompt } from './prompts';
 import { recordAiUsage, getAiAllowance } from './usage';
-import type { AiRequestOptions, AiResponse } from './types';
+import {
+  isAiImageTaskId,
+  type AiImageTaskId,
+  type AiRequestOptions,
+  type AiResponse,
+  type AiTaskId,
+} from './types';
 
 export type AiErrorCode =
   | 'missing-key'
@@ -181,6 +192,7 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     targetLanguage,
     sourceLanguage,
     detectSourceLanguage,
+    image,
     signal,
   } = options;
   const { guardrails } = settings;
@@ -207,16 +219,27 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     throw new AiError('input-too-large');
   }
 
-  const cacheKey = settings.cache.enabled
-    ? buildAiCacheKey({
-        settings,
-        task,
-        text: inputText,
-        ...(targetLanguage ? { targetLanguage } : {}),
-        ...(sourceLanguage ? { sourceLanguage } : {}),
-        ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
-      })
-    : null;
+  if (image) {
+    if (!isAiImageTaskId(task)) {
+      throw new AiError('bad-request');
+    }
+    if (!providerSupportsImageInput(settings.providerId)) {
+      throw new AiError('bad-request');
+    }
+  }
+
+  // Image requests are never cached: they contain document pixels.
+  const cacheKey =
+    settings.cache.enabled && !image
+      ? buildAiCacheKey({
+          settings,
+          task: task as AiTaskId,
+          text: inputText,
+          ...(targetLanguage ? { targetLanguage } : {}),
+          ...(sourceLanguage ? { sourceLanguage } : {}),
+          ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
+        })
+      : null;
 
   if (cacheKey) {
     try {
@@ -253,10 +276,12 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     throw new AiError('busy');
   }
 
-  const prompt = buildAiPrompt(task, inputText, targetLanguage, {
-    ...(sourceLanguage ? { sourceLanguage } : {}),
-    ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
-  });
+  const prompt = image
+    ? buildImageAiPrompt(task as AiImageTaskId)
+    : buildAiPrompt(task as AiTaskId, inputText, targetLanguage, {
+        ...(sourceLanguage ? { sourceLanguage } : {}),
+        ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
+      });
   const request = buildChatRequest({
     providerId: settings.providerId,
     baseUrl,
@@ -265,6 +290,7 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     systemPrompt: prompt.system,
     userPrompt: prompt.user,
     maxOutputTokens: guardrails.maxOutputTokens,
+    ...(image ? { image } : {}),
   });
 
   activeRequests += 1;
@@ -279,7 +305,8 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
           providerId: settings.providerId,
         });
         const rawResult = response.text.trim();
-        const detected = detectSourceLanguage ? parseDetectedTranslation(rawResult) : null;
+        const detected =
+          detectSourceLanguage && !image ? parseDetectedTranslation(rawResult) : null;
         const resultText = detected?.translation ?? rawResult;
         recordAiUsage(inputText.length, rawResult.length);
         if (cacheKey) {
@@ -292,7 +319,7 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
                 expiresAt: createdAt + settings.cache.expiryDays * 86_400_000,
                 providerId: settings.providerId,
                 model,
-                task,
+                task: task as AiTaskId,
                 result: resultText,
                 ...(detected ? { detectedSourceLanguage: detected.detectedSourceLanguage } : {}),
                 inputChars: inputText.length,

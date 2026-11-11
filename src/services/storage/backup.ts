@@ -1,4 +1,14 @@
-import type { DocumentRecord, EditorContent, SourceKind } from '@/domain/document';
+import {
+  DOCUMENT_SCHEMA_VERSION,
+  type DocumentRecord,
+  type EditorContent,
+  type SourceKind,
+} from '@/domain/document';
+import {
+  normalizeRefinementParams,
+  type RefinementParams,
+  type RefinementPresetId,
+} from '@/domain/refinement';
 import { base64ToBlob, blobToBase64 } from '@/lib/file';
 import { createId } from '@/lib/id';
 import { getDatabase } from './db';
@@ -8,12 +18,25 @@ const BACKUP_FORMAT = 'paperlens-backup';
 const BACKUP_VERSION = 1;
 const MAX_BACKUP_BYTES = 150 * 1024 * 1024;
 
+interface BackupRefinedImage {
+  mimeType: string;
+  fileName: string;
+  width: number;
+  height: number;
+  appliedAt: number;
+  preset: RefinementPresetId | null;
+  params: RefinementParams;
+  base64: string;
+}
+
 interface BackupSource {
   kind: SourceKind;
   mimeType: string;
   fileName: string;
   size: number;
   pageCount?: number;
+  /** Optional refined copy of an image source. The original is always kept. */
+  refined?: BackupRefinedImage;
   base64: string;
 }
 
@@ -54,6 +77,9 @@ export async function createBackup(): Promise<{ blob: Blob; fileName: string }> 
     if (!asset) {
       continue;
     }
+    const refined = document.source.refined
+      ? await database.get('assets', document.source.refined.assetId)
+      : undefined;
     entries.push({
       title: document.title,
       createdAt: document.createdAt,
@@ -66,6 +92,20 @@ export async function createBackup(): Promise<{ blob: Blob; fileName: string }> 
         size: document.source.size,
         ...(document.source.pageCount !== undefined
           ? { pageCount: document.source.pageCount }
+          : {}),
+        ...(refined && document.source.refined
+          ? {
+              refined: {
+                mimeType: document.source.refined.mimeType,
+                fileName: document.source.refined.fileName,
+                width: document.source.refined.width,
+                height: document.source.refined.height,
+                appliedAt: document.source.refined.appliedAt,
+                preset: document.source.refined.preset,
+                params: document.source.refined.params,
+                base64: await blobToBase64(refined.blob),
+              },
+            }
           : {}),
         base64: await blobToBase64(asset.blob),
       },
@@ -128,6 +168,20 @@ function parseBackup(raw: unknown): BackupFile {
     ) {
       throw new BackupError('invalid');
     }
+    const refined = entry.source.refined;
+    if (refined !== undefined) {
+      if (
+        !refined ||
+        typeof refined !== 'object' ||
+        typeof refined.mimeType !== 'string' ||
+        typeof refined.fileName !== 'string' ||
+        typeof refined.base64 !== 'string' ||
+        typeof refined.width !== 'number' ||
+        typeof refined.height !== 'number'
+      ) {
+        throw new BackupError('invalid');
+      }
+    }
   }
   return candidate as BackupFile;
 }
@@ -172,7 +226,7 @@ export async function restoreBackup(file: File): Promise<number> {
       title,
       createdAt: Number.isFinite(entry.createdAt) ? entry.createdAt : now,
       updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : now,
-      schemaVersion: 1,
+      schemaVersion: DOCUMENT_SCHEMA_VERSION,
       source: {
         assetId,
         kind: entry.source.kind,
@@ -194,7 +248,38 @@ export async function restoreBackup(file: File): Promise<number> {
       size: blob.size,
       createdAt: now,
     });
-    await documentsStore.add(document);
+
+    const restored = { ...document };
+    const refinedEntry = entry.source.refined;
+    if (refinedEntry) {
+      const refinedBlob = base64ToBlob(refinedEntry.base64, refinedEntry.mimeType);
+      if (refinedBlob.size > 0) {
+        const refinedAssetId = createId();
+        await assetsStore.add({
+          id: refinedAssetId,
+          blob: refinedBlob,
+          mimeType: refinedEntry.mimeType,
+          fileName: refinedEntry.fileName,
+          size: refinedBlob.size,
+          createdAt: now,
+        });
+        restored.source = {
+          ...restored.source,
+          refined: {
+            assetId: refinedAssetId,
+            mimeType: refinedEntry.mimeType,
+            fileName: refinedEntry.fileName,
+            size: refinedBlob.size,
+            width: Number.isFinite(refinedEntry.width) ? refinedEntry.width : 0,
+            height: Number.isFinite(refinedEntry.height) ? refinedEntry.height : 0,
+            appliedAt: Number.isFinite(refinedEntry.appliedAt) ? refinedEntry.appliedAt : now,
+            preset: refinedEntry.preset ?? null,
+            params: normalizeRefinementParams(refinedEntry.params),
+          },
+        };
+      }
+    }
+    await documentsStore.add(restored);
   }
 
   await transaction.done;

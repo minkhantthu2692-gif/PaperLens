@@ -1,4 +1,4 @@
-import type { AiProviderId } from './types';
+import type { AiImageInput, AiProviderId } from './types';
 
 export type AiProviderKind = 'openai-compatible' | 'anthropic' | 'gemini';
 
@@ -8,6 +8,12 @@ export interface AiProviderDefinition {
   kind: AiProviderKind;
   baseUrl: string;
   requiresBaseUrl: boolean;
+  /**
+   * Whether the provider's API accepts image input at all. Whether the chosen
+   * model accepts images is not discoverable in advance, so the app surfaces a
+   * clear error instead of silently sending an unsupported request.
+   */
+  supportsImageInput: boolean;
 }
 
 export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
@@ -17,6 +23,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: 'https://api.openai.com/v1',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'gemini',
@@ -24,6 +31,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'anthropic',
@@ -31,6 +39,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'anthropic',
     baseUrl: 'https://api.anthropic.com/v1',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'openrouter',
@@ -38,6 +47,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: 'https://openrouter.ai/api/v1',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'groq',
@@ -45,6 +55,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: 'https://api.groq.com/openai/v1',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'deepseek',
@@ -52,6 +63,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: 'https://api.deepseek.com/v1',
     requiresBaseUrl: false,
+    supportsImageInput: false,
   },
   {
     id: 'mistral',
@@ -59,6 +71,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: 'https://api.mistral.ai/v1',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'xai',
@@ -66,6 +79,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: 'https://api.x.ai/v1',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'together',
@@ -73,6 +87,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: 'https://api.together.xyz/v1',
     requiresBaseUrl: false,
+    supportsImageInput: true,
   },
   {
     id: 'custom',
@@ -80,6 +95,7 @@ export const AI_PROVIDERS: readonly AiProviderDefinition[] = [
     kind: 'openai-compatible',
     baseUrl: '',
     requiresBaseUrl: true,
+    supportsImageInput: true,
   },
 ];
 
@@ -91,6 +107,23 @@ export function getProviderDefinition(id: AiProviderId): AiProviderDefinition {
     throw new Error(`Unknown AI provider: ${id}`);
   }
   return provider;
+}
+
+export function providerSupportsImageInput(providerId: AiProviderId): boolean {
+  return getProviderDefinition(providerId).supportsImageInput;
+}
+
+function splitDataUrl(dataUrl: string): { data: string; mimeType: string } {
+  const separator = dataUrl.indexOf(',');
+  if (separator < 0) {
+    return { data: dataUrl, mimeType: 'image/jpeg' };
+  }
+  const header = dataUrl.slice(0, separator);
+  const match = /^data:([^;]+);base64$/i.exec(header);
+  return {
+    data: dataUrl.slice(separator + 1),
+    mimeType: match?.[1] ?? 'image/jpeg',
+  };
 }
 
 export function resolveProviderBaseUrl(providerId: AiProviderId, customBaseUrl: string): string {
@@ -112,6 +145,7 @@ interface ChatRequestInput {
   systemPrompt: string;
   userPrompt: string;
   maxOutputTokens: number;
+  image?: AiImageInput;
 }
 
 function stripModelsPrefix(model: string): string {
@@ -119,10 +153,25 @@ function stripModelsPrefix(model: string): string {
 }
 
 export function buildChatRequest(input: ChatRequestInput): ProviderHttpRequest {
-  const { providerId, baseUrl, apiKey, model, systemPrompt, userPrompt, maxOutputTokens } = input;
+  const { providerId, baseUrl, apiKey, model, systemPrompt, userPrompt, maxOutputTokens, image } =
+    input;
   const provider = getProviderDefinition(providerId);
+  const imagePayload = image ? splitDataUrl(image.dataUrl) : null;
 
   if (provider.kind === 'anthropic') {
+    const content = imagePayload
+      ? [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: image?.mimeType ?? imagePayload.mimeType,
+              data: imagePayload.data,
+            },
+          },
+          { type: 'text', text: userPrompt },
+        ]
+      : userPrompt;
     return {
       url: `${baseUrl}/messages`,
       init: {
@@ -138,7 +187,7 @@ export function buildChatRequest(input: ChatRequestInput): ProviderHttpRequest {
           max_tokens: maxOutputTokens,
           temperature: 0.2,
           system: systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }],
+          messages: [{ role: 'user', content }],
         }),
       },
     };
@@ -146,6 +195,17 @@ export function buildChatRequest(input: ChatRequestInput): ProviderHttpRequest {
 
   if (provider.kind === 'gemini') {
     const name = encodeURIComponent(stripModelsPrefix(model));
+    const parts = imagePayload
+      ? [
+          {
+            inline_data: {
+              mime_type: image?.mimeType ?? imagePayload.mimeType,
+              data: imagePayload.data,
+            },
+          },
+          { text: userPrompt },
+        ]
+      : [{ text: userPrompt }];
     return {
       url: `${baseUrl}/models/${name}:generateContent`,
       init: {
@@ -156,7 +216,7 @@ export function buildChatRequest(input: ChatRequestInput): ProviderHttpRequest {
         },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          contents: [{ role: 'user', parts }],
           generationConfig: {
             maxOutputTokens,
             temperature: 0.2,
@@ -181,7 +241,15 @@ export function buildChatRequest(input: ChatRequestInput): ProviderHttpRequest {
         stream: false,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          {
+            role: 'user',
+            content: imagePayload
+              ? [
+                  { type: 'text', text: userPrompt },
+                  { type: 'image_url', image_url: { url: image?.dataUrl ?? '' } },
+                ]
+              : userPrompt,
+          },
         ],
       }),
     },

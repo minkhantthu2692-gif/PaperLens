@@ -45,6 +45,7 @@ interface EditorPanelProps {
   onSaveStateChange: (state: SaveState) => void;
   onAiRequest: (selection: EditorSelectionContext) => void;
   headerActions?: ReactNode;
+  panelTitle?: ReactNode;
 }
 
 interface AiBubblePosition {
@@ -71,6 +72,7 @@ export function EditorPanel({
   onSaveStateChange,
   onAiRequest,
   headerActions,
+  panelTitle,
 }: EditorPanelProps) {
   const { t } = useTranslation();
   const [stats, setStats] = useState({ words: 0, characters: 0 });
@@ -250,7 +252,7 @@ export function EditorPanel({
       <header className={styles.panelHeader}>
         <div className={styles.headerTitle}>
           <PenLine size={16} aria-hidden="true" />
-          <span>{t('workspace.editor')}</span>
+          {panelTitle ?? <span>{t('workspace.editor')}</span>}
         </div>
         {headerActions ? (
           <div
