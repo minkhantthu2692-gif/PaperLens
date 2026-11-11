@@ -5,7 +5,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
-import { isThemePreference, THEME_PREFERENCES, type ThemePreference } from '@/app/theme/theme';
+import { THEME_PREFERENCES, type ThemePreference } from '@/app/theme/theme';
 import { useTheme } from '@/app/theme/useTheme';
 import { AiSettingsSection } from '@/features/ai/AiSettingsSection';
 import { isSupportedLanguage, type SupportedLanguage } from '@/i18n';
@@ -260,172 +260,198 @@ export default function SettingsPage() {
           </div>
         ) : null}
 
-        <section className={styles.card} aria-labelledby="settings-appearance">
-          <h2 id="settings-appearance">{t('settings.appearance')}</h2>
-          <p className={styles.cardDescription}>{t('settings.appearanceDescription')}</p>
-
-          <div className={styles.fieldRow}>
-            <label className={styles.label} htmlFor="settings-theme">
-              {t('settings.theme')}
-            </label>
-            <select
-              id="settings-theme"
-              className={formStyles.select}
-              value={preference}
-              onChange={(event) => {
-                if (isThemePreference(event.target.value)) {
-                  setPreference(event.target.value);
-                }
-              }}
-            >
-              {THEME_PREFERENCES.map((option) => (
-                <option key={option} value={option}>
-                  {t(THEME_LABEL_KEYS[option])}
-                </option>
-              ))}
-            </select>
+        <section
+          className={`${styles.card} ${styles.appearanceCard}`}
+          aria-labelledby="settings-appearance"
+        >
+          <div className={styles.cardIntro}>
+            <h2 id="settings-appearance">{t('settings.appearance')}</h2>
+            <p className={styles.cardDescription}>{t('settings.appearanceDescription')}</p>
           </div>
+          <div className={styles.appearanceFields}>
+            <div className={styles.fieldRow}>
+              <span className={styles.label} id="settings-theme-label">
+                {t('settings.theme')}
+              </span>
+              <div className={styles.segmented} role="group" aria-labelledby="settings-theme-label">
+                {THEME_PREFERENCES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={styles.segment}
+                    aria-pressed={preference === option}
+                    onClick={() => setPreference(option)}
+                  >
+                    {t(THEME_LABEL_KEYS[option])}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <div className={styles.fieldRow}>
-            <label className={styles.label} htmlFor="settings-language">
-              {t('settings.language')}
-            </label>
-            <select
-              id="settings-language"
-              className={formStyles.select}
-              value={language}
-              onChange={(event) => {
-                void i18n.changeLanguage(event.target.value);
-              }}
-            >
-              <option value="en">{t('language.en')}</option>
-              <option value="my">{t('language.my')}</option>
-            </select>
+            <div className={styles.fieldRow}>
+              <span className={styles.label} id="settings-language-label">
+                {t('settings.language')}
+              </span>
+              <div
+                className={styles.segmented}
+                role="group"
+                aria-labelledby="settings-language-label"
+              >
+                {(['en', 'my'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={styles.segment}
+                    aria-pressed={language === option}
+                    onClick={() => {
+                      void i18n.changeLanguage(option);
+                    }}
+                  >
+                    {t(`language.${option}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className={styles.hint}>{t('settings.languageDescription')}</p>
           </div>
-          <p className={styles.hint}>{t('settings.languageDescription')}</p>
         </section>
 
         <AiSettingsSection />
 
-        <section className={styles.card} aria-labelledby="settings-language-packs">
-          <h2 id="settings-language-packs">{t('settings.languagePacks')}</h2>
-          <p className={styles.cardDescription}>{t('settings.languagePacksDescription')}</p>
-          <p className={styles.hint}>{t('settings.bundledPacks')}</p>
+        <div className={styles.lowerGrid}>
+          <section
+            className={`${styles.card} ${styles.languageCard}`}
+            aria-labelledby="settings-language-packs"
+          >
+            <h2 id="settings-language-packs">{t('settings.languagePacks')}</h2>
+            <p className={styles.cardDescription}>{t('settings.languagePacksDescription')}</p>
+            <p className={styles.hint}>{t('settings.bundledPacks')}</p>
 
-          <ul className={styles.packList}>
-            {OPTIONAL_LANGUAGE_PACKS.map((pack) => {
-              const state = packStates[pack.code] ?? { status: 'idle', progress: 0 };
-              return (
-                <li key={pack.code} className={styles.packRow}>
-                  <div className={styles.packInfo}>
-                    <span className={styles.packName}>
-                      <Languages size={16} aria-hidden="true" />
-                      {pack.nativeName} <span className={styles.packEnglish}>({pack.name})</span>
-                    </span>
-                    <span className={styles.packMeta}>
-                      {formatBytes(pack.size)} · {t('settings.packLicense')}
-                    </span>
-                  </div>
-
-                  {state.status === 'downloading' ? (
-                    <div className={styles.packActions}>
-                      <progress
-                        className={styles.packProgress}
-                        value={Math.round(state.progress * 100)}
-                        max={100}
-                        aria-label={t('settings.packInstalling', { language: pack.name })}
-                      />
-                      <span className={styles.packProgressText}>
-                        {Math.round(state.progress * 100)}%
+            <ul className={styles.packList}>
+              {OPTIONAL_LANGUAGE_PACKS.map((pack) => {
+                const state = packStates[pack.code] ?? { status: 'idle', progress: 0 };
+                return (
+                  <li key={pack.code} className={styles.packRow}>
+                    <div className={styles.packInfo}>
+                      <span className={styles.packName}>
+                        <Languages size={16} aria-hidden="true" />
+                        {pack.nativeName} <span className={styles.packEnglish}>({pack.name})</span>
                       </span>
-                      <Button variant="ghost" size="sm" onClick={() => handleCancelPack(pack.code)}>
-                        {t('settings.cancelPack')}
-                      </Button>
+                      <span className={styles.packMeta}>
+                        {formatBytes(pack.size)} · {t('settings.packLicense')}
+                      </span>
                     </div>
-                  ) : state.status === 'installed' ? (
-                    <div className={styles.packActions}>
-                      <span className={styles.packInstalled}>{t('settings.installed')}</span>
-                      <Button variant="ghost" size="sm" onClick={() => void handleRemovePack(pack)}>
-                        <Trash2 size={15} aria-hidden="true" />
-                        {t('settings.removePack')}
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => void handleInstallPack(pack)}
-                    >
-                      <Download size={15} aria-hidden="true" />
-                      {state.status === 'error' ? t('common.retry') : t('settings.installPack')}
-                    </Button>
-                  )}
 
-                  {state.status === 'error' && state.error ? (
-                    <p className={styles.packError} role="alert">
-                      {t(packErrorKey(state.error))}
-                    </p>
-                  ) : null}
+                    {state.status === 'downloading' ? (
+                      <div className={styles.packActions}>
+                        <progress
+                          className={styles.packProgress}
+                          value={Math.round(state.progress * 100)}
+                          max={100}
+                          aria-label={t('settings.packInstalling', { language: pack.name })}
+                        />
+                        <span className={styles.packProgressText}>
+                          {Math.round(state.progress * 100)}%
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCancelPack(pack.code)}
+                        >
+                          {t('settings.cancelPack')}
+                        </Button>
+                      </div>
+                    ) : state.status === 'installed' ? (
+                      <div className={styles.packActions}>
+                        <span className={styles.packInstalled}>{t('settings.installed')}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleRemovePack(pack)}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                          {t('settings.removePack')}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void handleInstallPack(pack)}
+                      >
+                        <Download size={15} aria-hidden="true" />
+                        {state.status === 'error' ? t('common.retry') : t('settings.installPack')}
+                      </Button>
+                    )}
+
+                    {state.status === 'error' && state.error ? (
+                      <p className={styles.packError} role="alert">
+                        {t(packErrorKey(state.error))}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <div className={styles.utilityStack}>
+            <section className={styles.card} aria-labelledby="settings-data">
+              <h2 id="settings-data">{t('settings.data')}</h2>
+              <p className={styles.cardDescription}>{t('settings.dataDescription')}</p>
+
+              <p className={styles.storage}>
+                <HardDrive size={17} aria-hidden="true" />
+                {usage
+                  ? t('settings.storageUsed', {
+                      usage: formatBytes(usage.usage),
+                      quota: formatBytes(usage.quota),
+                    })
+                  : t('settings.storageUnavailable')}
+              </p>
+
+              <div className={styles.buttonRow}>
+                <Button onClick={() => void handleBackup()} disabled={busy}>
+                  <Download size={17} aria-hidden="true" />
+                  {t('settings.exportBackup')}
+                </Button>
+                <Button onClick={() => restoreInputRef.current?.click()} disabled={busy}>
+                  <Upload size={17} aria-hidden="true" />
+                  {t('settings.restoreBackup')}
+                </Button>
+                <Button variant="danger" onClick={() => setDeleteOpen(true)} disabled={busy}>
+                  <Trash2 size={17} aria-hidden="true" />
+                  {t('settings.deleteAll')}
+                </Button>
+              </div>
+              <input
+                ref={restoreInputRef}
+                type="file"
+                accept="application/json,.json"
+                className={styles.hiddenInput}
+                onChange={(event) => void handleRestore(event)}
+                aria-label={t('settings.restoreBackup')}
+              />
+            </section>
+
+            <section className={styles.card} aria-labelledby="settings-about">
+              <h2 id="settings-about">{t('settings.about')}</h2>
+              <p className={styles.aboutVersion}>
+                {t('settings.version', { version: __APP_VERSION__ })}
+              </p>
+              <ul className={styles.aboutList}>
+                <li>{t('settings.supportedFormats')}</li>
+                <li>
+                  <strong>{t('settings.limitationsTitle')}:</strong> {t('settings.limitations')}
                 </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        <section className={styles.card} aria-labelledby="settings-data">
-          <h2 id="settings-data">{t('settings.data')}</h2>
-          <p className={styles.cardDescription}>{t('settings.dataDescription')}</p>
-
-          <p className={styles.storage}>
-            <HardDrive size={17} aria-hidden="true" />
-            {usage
-              ? t('settings.storageUsed', {
-                  usage: formatBytes(usage.usage),
-                  quota: formatBytes(usage.quota),
-                })
-              : t('settings.storageUnavailable')}
-          </p>
-
-          <div className={styles.buttonRow}>
-            <Button onClick={() => void handleBackup()} disabled={busy}>
-              <Download size={17} aria-hidden="true" />
-              {t('settings.exportBackup')}
-            </Button>
-            <Button onClick={() => restoreInputRef.current?.click()} disabled={busy}>
-              <Upload size={17} aria-hidden="true" />
-              {t('settings.restoreBackup')}
-            </Button>
-            <Button variant="danger" onClick={() => setDeleteOpen(true)} disabled={busy}>
-              <Trash2 size={17} aria-hidden="true" />
-              {t('settings.deleteAll')}
-            </Button>
+                <li className={styles.privacy}>
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  {t('settings.privacy')}
+                </li>
+              </ul>
+            </section>
           </div>
-          <input
-            ref={restoreInputRef}
-            type="file"
-            accept="application/json,.json"
-            className={styles.hiddenInput}
-            onChange={(event) => void handleRestore(event)}
-            aria-label={t('settings.restoreBackup')}
-          />
-        </section>
-
-        <section className={styles.card} aria-labelledby="settings-about">
-          <h2 id="settings-about">{t('settings.about')}</h2>
-          <p className={styles.aboutVersion}>
-            {t('settings.version', { version: __APP_VERSION__ })}
-          </p>
-          <ul className={styles.aboutList}>
-            <li>{t('settings.supportedFormats')}</li>
-            <li>
-              <strong>{t('settings.limitationsTitle')}:</strong> {t('settings.limitations')}
-            </li>
-            <li className={styles.privacy}>
-              <ShieldCheck size={16} aria-hidden="true" />
-              {t('settings.privacy')}
-            </li>
-          </ul>
-        </section>
+        </div>
       </div>
 
       <Dialog

@@ -299,8 +299,16 @@ export const my: Widen<typeof en> = {
     aiBaseUrlHint: 'API base အပြည့် (အဆုံးတွင် /v1) ဥပမာ https://example.com/v1။',
     aiModel: 'မော်ဒယ်',
     aiModelHint:
-      'မော်ဒယ် ID ကို ရိုက်ထည့်ပါ သို့မဟုတ် ဝန်ဆောင်မှုမှ စာရင်းကို ပြန်လည်ရယူပါ။ ရရှိနိုင်မှုနှင့် အခမဲ့ အဆင့်များ ပြောင်းလဲနိုင်သည်။',
+      'ရယူထားသော မော်ဒယ် {{count}} ခုကို ရှာဖွေပါ သို့မဟုတ် မော်ဒယ် ID ကို ကိုယ်တိုင်ရိုက်ထည့်ပါ။ ရရှိနိုင်သော မော်ဒယ်များကို ရယူရန် ပြန်လည်ရယူပါ။',
     aiModelPlaceholder: 'မော်ဒယ် ID',
+    aiSearchProviders: 'ဝန်ဆောင်မှုများ ရှာရန်…',
+    aiNoProvidersFound: 'ဝန်ဆောင်မှု မတွေ့ပါ။',
+    aiSearchModels: 'မော်ဒယ်များ ရှာရန် သို့မဟုတ် ID ရိုက်ထည့်ရန်…',
+    aiNoModelsFound: 'မော်ဒယ် မတွေ့ပါ။ စိတ်ကြိုက်မော်ဒယ်အဖြစ် အသုံးပြုရန် ID ရိုက်ထည့်ပါ။',
+    aiRecentModels: 'မကြာသေးမီက အသုံးပြုထားသည်',
+    aiAllModels: 'မော်ဒယ်အားလုံး',
+    aiFreeModels: 'အခမဲ့',
+    aiUseModel: '“{{model}}” ကို အသုံးပြုမည်',
     aiRefreshModels: 'မော်ဒယ်များ ပြန်လည်ရယူမည်',
     aiModelsLoaded: 'မော်ဒယ် {{count}} ခု ရယူပြီးပါပြီ။',
     aiModelsError:

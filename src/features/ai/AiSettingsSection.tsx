@@ -1,8 +1,31 @@
-import { useEffect, useId, useState } from 'react';
-import { Eye, EyeOff, KeyRound, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  BrainCircuit,
+  Boxes,
+  Flame,
+  Network,
+  Orbit,
+  Plus,
+  RefreshCw,
+  Save,
+  SlidersHorizontal,
+  Sparkles,
+  Trash2,
+  Waves,
+  X,
+  Zap,
+  Eye,
+  EyeOff,
+  KeyRound,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import formStyles from '@/components/ui/Form.module.css';
+import {
+  SearchablePicker,
+  type SearchablePickerFilter,
+  type SearchablePickerOption,
+} from './SearchablePicker';
 import { clearAiCache, getAiCacheCount } from '@/services/ai/cache';
 import {
   addApiKey,
@@ -22,6 +45,35 @@ import styles from './AiSettingsSection.module.css';
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
 type ModelsState = 'idle' | 'loading' | 'error';
+
+const RECENT_MODELS_STORAGE_KEY = 'paperlens.ai.recent-models';
+const MAX_RECENT_MODELS = 8;
+
+function getProviderIcon(providerId: AiProviderId) {
+  const iconProps = { size: 20, strokeWidth: 2 };
+  switch (providerId) {
+    case 'openai':
+      return <Orbit {...iconProps} color="#10a37f" />;
+    case 'gemini':
+      return <Sparkles {...iconProps} color="#4285f4" />;
+    case 'anthropic':
+      return <BrainCircuit {...iconProps} color="#d97757" />;
+    case 'openrouter':
+      return <Network {...iconProps} color="#8b5cf6" />;
+    case 'groq':
+      return <Zap {...iconProps} color="#f97316" />;
+    case 'deepseek':
+      return <Waves {...iconProps} color="#2563eb" />;
+    case 'mistral':
+      return <Flame {...iconProps} color="#f97316" />;
+    case 'xai':
+      return <X {...iconProps} color="#8b5cf6" />;
+    case 'together':
+      return <Boxes {...iconProps} color="#ec4899" />;
+    case 'custom':
+      return <SlidersHorizontal {...iconProps} color="#64748b" />;
+  }
+}
 
 const NUMERIC_FIELDS = [
   { key: 'maxInputChars', min: 500, max: 50000, label: 'settings.aiMaxInput' },
@@ -46,9 +98,46 @@ function maskKey(key: string): string {
   return `••••${key.slice(-4)}`;
 }
 
+function loadRecentModels(providerId: AiProviderId): string[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(RECENT_MODELS_STORAGE_KEY) ?? '{}');
+    if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) {
+      return [];
+    }
+    const values = (stored as Record<string, unknown>)[providerId];
+    return Array.isArray(values)
+      ? values
+          .filter((value): value is string => typeof value === 'string')
+          .slice(0, MAX_RECENT_MODELS)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeRecentModel(providerId: AiProviderId, model: string): string[] {
+  const recent = [model, ...loadRecentModels(providerId).filter((value) => value !== model)].slice(
+    0,
+    MAX_RECENT_MODELS,
+  );
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(RECENT_MODELS_STORAGE_KEY) ?? '{}');
+    const records =
+      typeof stored === 'object' && stored !== null && !Array.isArray(stored)
+        ? (stored as Record<string, unknown>)
+        : {};
+    localStorage.setItem(
+      RECENT_MODELS_STORAGE_KEY,
+      JSON.stringify({ ...records, [providerId]: recent }),
+    );
+  } catch {
+    // Recent selections remain available for the current page if storage is unavailable.
+  }
+  return recent;
+}
+
 export function AiSettingsSection() {
   const { t } = useTranslation();
-  const modelsListId = useId();
   const [settings, setSettings] = useState<AiSettings>(loadAiSettings);
   const [keys, setKeys] = useState<AiApiKeyEntry[]>([]);
   const [activeKeyId, setActiveKeyId] = useState<string | null>(null);
@@ -56,6 +145,7 @@ export function AiSettingsSection() {
   const [keyDraft, setKeyDraft] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [models, setModels] = useState<string[]>([]);
+  const [recentModels, setRecentModels] = useState<string[]>([]);
   const [modelsState, setModelsState] = useState<ModelsState>('idle');
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [usage, setUsage] = useState(getAiUsageSummary);
@@ -70,6 +160,7 @@ export function AiSettingsSection() {
     setKeyLabel('');
     setKeyDraft('');
     setShowKey(false);
+    setRecentModels(loadRecentModels(settings.providerId));
   }, [settings.providerId]);
 
   useEffect(() => {
@@ -128,18 +219,61 @@ export function AiSettingsSection() {
       );
       setModels(list);
       setModelsState('idle');
-      if (list.length > 0) {
-        setSettings((current) => ({
-          ...current,
-          model: current.model.trim() ? current.model : (list[0] ?? ''),
-        }));
-      }
       setFeedback({ type: 'success', text: t('settings.aiModelsLoaded', { count: list.length }) });
     } catch {
       setModelsState('error');
       setFeedback({ type: 'error', text: t('settings.aiModelsError') });
     }
   };
+
+  const handleSelectModel = (model: string) => {
+    setSettings((current) => ({ ...current, model }));
+    setRecentModels(storeRecentModel(settings.providerId, model));
+  };
+
+  const providerOptions: SearchablePickerOption[] = AI_PROVIDERS.map((option) => ({
+    value: option.id,
+    label: option.id === 'custom' ? t('settings.aiProviderCustom') : option.label,
+    icon: getProviderIcon(option.id),
+  }));
+  const modelOptions: SearchablePickerOption[] = [...new Set([...recentModels, ...models])].map(
+    (model) => ({ value: model, label: model }),
+  );
+  const modelFilters: SearchablePickerFilter[] = [];
+  const freeModels = modelOptions.filter((option) => /:free$/i.test(option.value));
+  if (freeModels.length > 0) {
+    modelFilters.push({
+      value: 'free',
+      label: t('settings.aiFreeModels'),
+      count: freeModels.length,
+      matches: (option) => /:free$/i.test(option.value),
+    });
+  }
+  const publishers = new Map<string, number>();
+  for (const option of modelOptions) {
+    const separator = option.value.indexOf('/');
+    if (separator > 0) {
+      const publisher = option.value.slice(0, separator);
+      publishers.set(publisher, (publishers.get(publisher) ?? 0) + 1);
+    }
+  }
+  for (const [publisher, count] of publishers) {
+    modelFilters.push({
+      value: `publisher:${publisher}`,
+      label: publisher,
+      count,
+      matches: (option) => option.value.startsWith(`${publisher}/`),
+    });
+  }
+  if (recentModels.some((recent) => modelOptions.some((option) => option.value === recent))) {
+    const recentSet = new Set(recentModels);
+    modelFilters.unshift({
+      value: 'recent',
+      label: t('settings.aiRecentModels'),
+      count: modelOptions.filter((option) => recentSet.has(option.value)).length,
+      matches: (option) => recentSet.has(option.value),
+    });
+  }
 
   const handleAddKey = () => {
     if (!keyDraft.trim()) {
@@ -204,9 +338,11 @@ export function AiSettingsSection() {
   };
 
   return (
-    <section className={styles.card} aria-labelledby="settings-ai">
-      <h2 id="settings-ai">{t('settings.aiAssistance')}</h2>
-      <p className={styles.cardDescription}>{t('settings.aiDescription')}</p>
+    <section className={`${styles.card} ${styles.aiCard}`} aria-labelledby="settings-ai">
+      <div className={styles.cardHeader}>
+        <h2 id="settings-ai">{t('settings.aiAssistance')}</h2>
+        <p className={styles.cardDescription}>{t('settings.aiDescription')}</p>
+      </div>
 
       {feedback ? (
         <div
@@ -217,217 +353,234 @@ export function AiSettingsSection() {
         </div>
       ) : null}
 
-      <div className={styles.grid}>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="ai-provider">
-            {t('settings.aiProvider')}
-          </label>
-          <select
-            id="ai-provider"
-            className={formStyles.select}
-            value={settings.providerId}
-            onChange={(event) => {
-              const providerId = event.target.value as AiProviderId;
-              setSettings((current) => ({ ...current, providerId }));
-              setModels([]);
-              setModelsState('idle');
-            }}
-          >
-            {AI_PROVIDERS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.id === 'custom' ? t('settings.aiProviderCustom') : option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {provider.requiresBaseUrl ? (
+      <div className={styles.setupGrid}>
+        <div className={`${styles.grid} ${styles.connectionGrid}`}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="ai-base-url">
-              {t('settings.aiBaseUrl')}
-            </label>
-            <input
-              id="ai-base-url"
-              className={formStyles.input}
-              value={settings.customBaseUrl}
-              placeholder="https://example.com/v1"
-              onChange={(event) => {
-                const customBaseUrl = event.target.value;
-                setSettings((current) => ({ ...current, customBaseUrl }));
+            <span className={styles.label} id="ai-provider-label">
+              {t('settings.aiProvider')}
+            </span>
+            <SearchablePicker
+              label={t('settings.aiProvider')}
+              value={settings.providerId}
+              options={providerOptions}
+              placeholder={t('settings.aiProvider')}
+              searchPlaceholder={t('settings.aiSearchProviders')}
+              emptyMessage={t('settings.aiNoProvidersFound')}
+              onChange={(value) => {
+                const providerId = value as AiProviderId;
+                setSettings((current) => ({ ...current, providerId }));
+                setModels([]);
+                setModelsState('idle');
               }}
             />
-            <p className={styles.hint}>{t('settings.aiBaseUrlHint')}</p>
           </div>
-        ) : null}
 
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="ai-model">
-            {t('settings.aiModel')}
-          </label>
-          <div className={styles.inline}>
-            <input
-              id="ai-model"
-              className={formStyles.input}
-              value={settings.model}
-              list={modelsListId}
-              placeholder={t('settings.aiModelPlaceholder')}
-              onChange={(event) => {
-                const model = event.target.value;
-                setSettings((current) => ({ ...current, model }));
-              }}
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void handleRefreshModels()}
-              disabled={modelsState === 'loading'}
-            >
-              <RefreshCw
-                size={15}
-                aria-hidden="true"
-                className={modelsState === 'loading' ? styles.spinning : undefined}
+          {provider.requiresBaseUrl ? (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ai-base-url">
+                {t('settings.aiBaseUrl')}
+              </label>
+              <input
+                id="ai-base-url"
+                className={formStyles.input}
+                value={settings.customBaseUrl}
+                placeholder="https://example.com/v1"
+                onChange={(event) => {
+                  const customBaseUrl = event.target.value;
+                  setSettings((current) => ({ ...current, customBaseUrl }));
+                }}
               />
-              {t('settings.aiRefreshModels')}
-            </Button>
+              <p className={styles.hint}>{t('settings.aiBaseUrlHint')}</p>
+            </div>
+          ) : null}
+
+          <div className={`${styles.field} ${styles.modelField} ${styles.modelWide}`}>
+            <span className={styles.label} id="ai-model-label">
+              {t('settings.aiModel')}
+            </span>
+            <div className={`${styles.inline} ${styles.modelControls}`}>
+              <SearchablePicker
+                label={t('settings.aiModel')}
+                value={settings.model}
+                options={modelOptions}
+                recentValues={recentModels}
+                recentLabel={t('settings.aiRecentModels')}
+                allLabel={t('settings.aiAllModels')}
+                allFilterLabel={t('settings.aiAllModels')}
+                filters={modelFilters}
+                placeholder={t('settings.aiModelPlaceholder')}
+                searchPlaceholder={t('settings.aiSearchModels')}
+                emptyMessage={t('settings.aiNoModelsFound')}
+                allowCustomValue
+                customValueLabel={(model) => t('settings.aiUseModel', { model })}
+                onChange={handleSelectModel}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleRefreshModels()}
+                disabled={modelsState === 'loading'}
+              >
+                <RefreshCw
+                  size={15}
+                  aria-hidden="true"
+                  className={modelsState === 'loading' ? styles.spinning : undefined}
+                />
+                {t('settings.aiRefreshModels')}
+              </Button>
+            </div>
+            <p className={styles.hint}>
+              {modelsState === 'error'
+                ? t('settings.aiModelsError')
+                : t('settings.aiModelHint', { count: models.length })}
+            </p>
           </div>
-          <datalist id={modelsListId}>
-            {models.map((model) => (
-              <option key={model} value={model} />
-            ))}
-          </datalist>
-          <p className={styles.hint}>
-            {modelsState === 'error' ? t('settings.aiModelsError') : t('settings.aiModelHint')}
-          </p>
         </div>
-      </div>
 
-      <div className={styles.field} role="group" aria-labelledby="ai-keys-label">
-        <span className={styles.label} id="ai-keys-label">
-          {t('settings.aiKeys')}
-        </span>
-        <p className={styles.hint}>{t('settings.aiKeysHint')}</p>
+        <div
+          className={`${styles.field} ${styles.keySettings}`}
+          role="group"
+          aria-labelledby="ai-keys-label"
+        >
+          <span className={styles.label} id="ai-keys-label">
+            {t('settings.aiKeys')}
+          </span>
+          <p className={styles.hint}>{t('settings.aiKeysHint')}</p>
 
-        {keys.length === 0 ? (
-          <p className={styles.hint}>{t('settings.aiNoKeys')}</p>
-        ) : (
-          <ul className={styles.keyList}>
-            {keys.map((entry) => (
-              <li key={entry.id} className={styles.keyRow}>
-                <label className={styles.keyChoice}>
-                  <input
-                    type="radio"
-                    name="ai-active-key"
-                    checked={entry.id === activeKeyId}
-                    onChange={() => handleSelectKey(entry.id)}
-                  />
-                  <span className={styles.keyInfo}>
-                    <span className={styles.keyLabel}>{entry.label}</span>
-                    <span className={styles.keyValue}>{maskKey(entry.key)}</span>
-                  </span>
-                </label>
-                {entry.id === activeKeyId ? (
-                  <span className={styles.keyBadge}>{t('settings.aiKeyActive')}</span>
-                ) : null}
+          {keys.length === 0 ? (
+            <p className={styles.hint}>{t('settings.aiNoKeys')}</p>
+          ) : (
+            <ul className={styles.keyList}>
+              {keys.map((entry) => (
+                <li key={entry.id} className={styles.keyRow}>
+                  <label className={styles.keyChoice}>
+                    <input
+                      type="radio"
+                      name="ai-active-key"
+                      checked={entry.id === activeKeyId}
+                      onChange={() => handleSelectKey(entry.id)}
+                    />
+                    <span className={styles.keyInfo}>
+                      <span className={styles.keyLabel}>{entry.label}</span>
+                      <span className={styles.keyValue}>{maskKey(entry.key)}</span>
+                    </span>
+                  </label>
+                  {entry.id === activeKeyId ? (
+                    <span className={styles.keyBadge}>{t('settings.aiKeyActive')}</span>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    onClick={() => handleRemoveKey(entry.id)}
+                    aria-label={t('settings.aiRemoveKey', { label: entry.label })}
+                    title={t('settings.aiRemoveKey', { label: entry.label })}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className={styles.grid}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ai-key-label">
+                {t('settings.aiKeyLabel')}
+              </label>
+              <input
+                id="ai-key-label"
+                className={formStyles.input}
+                name="paperlens-api-key-label"
+                autoComplete="off"
+                value={keyLabel}
+                placeholder={t('settings.aiKeyLabelPlaceholder')}
+                onChange={(event) => setKeyLabel(event.target.value)}
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ai-api-key">
+                {t('settings.aiApiKey')}
+              </label>
+              <div className={styles.inline}>
+                <input
+                  id="ai-api-key"
+                  className={formStyles.input}
+                  type={showKey ? 'text' : 'password'}
+                  name="paperlens-provider-api-key"
+                  value={keyDraft}
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  placeholder="sk-…"
+                  onChange={(event) => setKeyDraft(event.target.value)}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
                   iconOnly
-                  onClick={() => handleRemoveKey(entry.id)}
-                  aria-label={t('settings.aiRemoveKey', { label: entry.label })}
-                  title={t('settings.aiRemoveKey', { label: entry.label })}
+                  onClick={() => setShowKey((current) => !current)}
+                  aria-label={showKey ? t('settings.aiHideKey') : t('settings.aiShowKey')}
+                  title={showKey ? t('settings.aiHideKey') : t('settings.aiShowKey')}
                 >
-                  <Trash2 size={15} aria-hidden="true" />
+                  {showKey ? (
+                    <EyeOff size={16} aria-hidden="true" />
+                  ) : (
+                    <Eye size={16} aria-hidden="true" />
+                  )}
                 </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className={styles.grid}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="ai-key-label">
-              {t('settings.aiKeyLabel')}
-            </label>
-            <input
-              id="ai-key-label"
-              className={formStyles.input}
-              value={keyLabel}
-              placeholder={t('settings.aiKeyLabelPlaceholder')}
-              onChange={(event) => setKeyLabel(event.target.value)}
-            />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="ai-api-key">
-              {t('settings.aiApiKey')}
-            </label>
-            <div className={styles.inline}>
-              <input
-                id="ai-api-key"
-                className={formStyles.input}
-                type={showKey ? 'text' : 'password'}
-                value={keyDraft}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="sk-…"
-                onChange={(event) => setKeyDraft(event.target.value)}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                iconOnly
-                onClick={() => setShowKey((current) => !current)}
-                aria-label={showKey ? t('settings.aiHideKey') : t('settings.aiShowKey')}
-                title={showKey ? t('settings.aiHideKey') : t('settings.aiShowKey')}
-              >
-                {showKey ? (
-                  <EyeOff size={16} aria-hidden="true" />
-                ) : (
-                  <Eye size={16} aria-hidden="true" />
-                )}
-              </Button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className={styles.actions}>
-          <Button variant="secondary" size="sm" onClick={handleAddKey}>
-            <Plus size={15} aria-hidden="true" />
-            {t('settings.aiAddKey')}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleClearKeys} disabled={keys.length === 0}>
-            <Trash2 size={15} aria-hidden="true" />
-            {t('settings.aiClearKeys')}
-          </Button>
+          <div className={styles.actions}>
+            <Button variant="secondary" size="sm" onClick={handleAddKey}>
+              <Plus size={15} aria-hidden="true" />
+              {t('settings.aiAddKey')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearKeys}
+              disabled={keys.length === 0}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              {t('settings.aiClearKeys')}
+            </Button>
+          </div>
+          <p className={styles.hint}>{t('settings.aiApiKeyHint')}</p>
         </div>
-        <p className={styles.hint}>{t('settings.aiApiKeyHint')}</p>
       </div>
 
-      <label className={styles.checkbox}>
-        <input
-          type="checkbox"
-          checked={settings.rememberKey}
-          onChange={(event) => handleRememberChange(event.target.checked)}
-        />
-        <span className={styles.checkboxText}>
-          <span className={styles.checkboxLabel}>{t('settings.aiRememberKey')}</span>
-          <span className={styles.hint}>{t('settings.aiRememberKeyHint')}</span>
-        </span>
-      </label>
+      <div className={styles.preferences}>
+        <label className={styles.checkbox}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={settings.rememberKey}
+            onChange={(event) => handleRememberChange(event.target.checked)}
+          />
+          <span className={styles.checkboxText}>
+            <span className={styles.checkboxLabel}>{t('settings.aiRememberKey')}</span>
+            <span className={styles.hint}>{t('settings.aiRememberKeyHint')}</span>
+          </span>
+        </label>
 
-      <label className={styles.checkbox}>
-        <input
-          type="checkbox"
-          checked={settings.cache.enabled}
-          onChange={(event) => updateCache('enabled', event.target.checked)}
-        />
-        <span className={styles.checkboxText}>
-          <span className={styles.checkboxLabel}>{t('settings.aiCache')}</span>
-          <span className={styles.hint}>{t('settings.aiCacheHint')}</span>
-        </span>
-      </label>
+        <label className={styles.checkbox}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={settings.cache.enabled}
+            onChange={(event) => updateCache('enabled', event.target.checked)}
+          />
+          <span className={styles.checkboxText}>
+            <span className={styles.checkboxLabel}>{t('settings.aiCache')}</span>
+            <span className={styles.hint}>{t('settings.aiCacheHint')}</span>
+          </span>
+        </label>
+      </div>
 
       {settings.cache.enabled ? (
-        <div className={styles.grid}>
+        <div className={`${styles.grid} ${styles.cacheSettings}`}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ai-cache-expiry">
               {t('settings.aiCacheExpiry')}

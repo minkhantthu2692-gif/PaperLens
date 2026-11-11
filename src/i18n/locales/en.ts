@@ -288,8 +288,16 @@ export const en = {
     aiBaseUrlHint: 'Full API base ending in /v1, for example https://example.com/v1.',
     aiModel: 'Model',
     aiModelHint:
-      'Enter a model ID or refresh the list from the provider. Availability and free tiers can change.',
+      'Search {{count}} fetched models or enter a model ID manually. Refresh to load available models; availability can change.',
     aiModelPlaceholder: 'Model ID',
+    aiSearchProviders: 'Search providers…',
+    aiNoProvidersFound: 'No providers found.',
+    aiSearchModels: 'Search models or enter an ID…',
+    aiNoModelsFound: 'No models found. Enter an ID to use a custom model.',
+    aiRecentModels: 'Recently used',
+    aiAllModels: 'All models',
+    aiFreeModels: 'Free',
+    aiUseModel: 'Use “{{model}}”',
     aiRefreshModels: 'Refresh models',
     aiModelsLoaded: 'Loaded {{count}} model(s).',
     aiModelsError:

@@ -32,7 +32,7 @@ describe('App routing', () => {
     renderApp('/settings');
 
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Theme'), 'dark');
+    await user.click(screen.getByRole('button', { name: 'Dark' }));
 
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
   });
@@ -41,7 +41,7 @@ describe('App routing', () => {
     const user = userEvent.setup();
     renderApp('/settings');
 
-    await user.selectOptions(await screen.findByLabelText('Language'), 'my');
+    await user.click(await screen.findByRole('button', { name: 'Burmese' }));
 
     expect(await screen.findByRole('heading', { name: 'ဆက်တင်များ' })).toBeInTheDocument();
     await waitFor(() => expect(document.documentElement.lang).toBe('my'));

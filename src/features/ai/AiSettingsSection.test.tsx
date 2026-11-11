@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import i18n from '@/i18n';
 import { getActiveApiKey, listApiKeys } from '@/services/ai/keys';
@@ -24,7 +24,24 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('AiSettingsSection key vault', () => {
+  it('shows an icon for every provider in the provider popup', async () => {
+    const user = userEvent.setup();
+    render(<AiSettingsSection />);
+
+    await user.click(screen.getByRole('button', { name: 'Provider' }));
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(10);
+    options.forEach((option) => {
+      expect(option.querySelector('svg')).toBeInTheDocument();
+    });
+  });
+
   it('adds multiple keys for one provider and switches the active key', async () => {
     const user = userEvent.setup();
     render(<AiSettingsSection />);
@@ -49,7 +66,33 @@ describe('AiSettingsSection key vault', () => {
     await addKey(user, 'Personal', 'sk-personal-key');
     expect(localStorage.getItem('paperlens.ai.keys')).toBeNull();
 
-    await user.click(screen.getByRole('checkbox', { name: /Remember the API key/ }));
+    await user.click(screen.getByRole('switch', { name: /Remember the API key/ }));
     expect(localStorage.getItem('paperlens.ai.keys')).toContain('sk-personal-key');
+  });
+
+  it('keeps all fetched models available and records selected models as recent', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [{ id: 'model-one' }, { id: 'model-two' }] }),
+      }),
+    );
+    render(<AiSettingsSection />);
+
+    await addKey(user, 'Personal', 'sk-personal-key');
+    await user.click(screen.getByRole('button', { name: 'Refresh models' }));
+    expect(await screen.findByText('Loaded 2 model(s).')).toBeInTheDocument();
+
+    const modelPicker = screen.getByRole('button', { name: 'Model' });
+    expect(modelPicker).toHaveTextContent('Model ID');
+    await user.click(modelPicker);
+    expect(screen.getByRole('option', { name: 'model-one' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'model-two' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('option', { name: 'model-two' }));
+    await user.click(screen.getByRole('button', { name: 'Model' }));
+    expect(screen.getByRole('group', { name: 'Recently used' })).toHaveTextContent('model-two');
   });
 });
