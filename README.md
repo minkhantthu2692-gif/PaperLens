@@ -5,12 +5,13 @@ output into clean, editable documents. Documents are processed and stored on you
 default. AI assistance is optional, bring-your-own-key, and never required for the core
 workflow.
 
-> Status: **Phase 3 — OCR, deterministic cleanup, and optional language packs**. The app
-> imports PDF, image, and text files into IndexedDB, runs local OCR with bundled English/Burmese
-> models or verified optional packs, offers previewable offline text cleanup, supports source
-> viewing, rich-text editing, TXT/HTML/PDF (print) export, and backup/restore. Representative
-> scan-quality testing, AI assistance, DOCX export, and the installable PWA/service worker
-> remain future work.
+> Status: **Phase 4 — optional BYOK AI assistance and guardrails**. The app imports PDF, image,
+> and text files into IndexedDB, runs local OCR with bundled English/Burmese models or verified
+> optional packs, offers previewable offline text cleanup, supports source viewing, rich-text
+> editing, TXT/HTML/PDF (print) export, and backup/restore. Selected-text AI actions now support
+> ten provider options, dynamic model discovery, explicit key handling, and user-configured
+> usage limits. Representative scan-quality testing, DOCX export, the optional exact-match AI
+> cache, and the installable PWA/service worker remain future work.
 
 ## Product rules
 
@@ -35,6 +36,7 @@ product specification.
 | Editor        | Tiptap (rich text, local autosave)                           |
 | Source viewer | PDF.js (canvas, text layer, regions)                         |
 | OCR           | Tesseract.js 7, worker-based, bundled EN/MY + verified packs |
+| AI            | Direct browser-to-provider adapters, BYOK, no proxy          |
 | Tests         | Vitest + Testing Library + jsdom                             |
 
 ## Current capabilities
@@ -56,6 +58,16 @@ product specification.
   duplicate-line removal. Applied changes are ordinary editor edits, so Undo reverts them.
 - Rich-text editing (headings, lists, quotes, alignment, links, undo/redo) with word/character
   counts and explicit save state.
+- Optional selected-text AI assistance with a floating editor action: proofread, rewrite,
+  summarize, translate, or clean OCR text, with result preview, copy, and intentional
+  replace. Requests go directly from the browser to the configured provider; nothing is
+  proxied or stored by the app.
+- AI settings for OpenAI, Google Gemini, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, xAI,
+  Together AI, and custom OpenAI-compatible endpoints, including model discovery with manual
+  entry as a fallback.
+- Explicit AI guardrails: input character cap, output token cap, timeout, bounded retries,
+  concurrency limit, daily/monthly request limits, warning threshold, per-session key storage
+  with opt-in remember, and clearable usage counters. Provider-side quota cannot be inspected.
 - Export to plain text, standalone HTML, or PDF through the browser print dialog.
 - Versioned JSON backup and restore, storage-usage display, and delete-all-local-data controls.
 - English and Burmese UI, light/dark/system themes, offline status indicator.
@@ -64,9 +76,10 @@ Current limitations: PDF text selection is approximate. OCR accuracy varies with
 and has not yet been validated against a representative English/Burmese corpus in this
 environment. Optional packs come from a curated list and are checksum-verified, but the
 checksums and pinned revision must be updated manually. Cleanup tools are conservative
-heuristics, not AI, and may still need manual review. DOCX export, direct PDF file generation,
-AI assistance, and installable PWA behavior are not implemented yet. Browser storage can be
-cleared or evicted, so keep backups.
+heuristics, not AI, and may still need manual review. AI actions are limited to selected text,
+depend on provider CORS/browser support, and cannot enforce provider-side quotas or billing.
+DOCX export, direct PDF file generation, the exact-match AI cache, and installable PWA behavior
+are not implemented yet. Browser storage can be cleared or evicted, so keep backups.
 
 ## Getting started
 
@@ -150,6 +163,9 @@ and PWA install support are added in a later phase.
 - OCR runs in a browser worker with bundled or locally installed language models; source pages
   are not uploaded. Installing an optional pack downloads only the model file from the pinned
   `tessdata_fast` revision in a user-initiated request.
+- AI requests are user-initiated and send only the selected text directly to the configured
+  provider. Keys stay in session storage by default; remember-key is opt-in and stores the key
+  in browser storage. Keys and document text are never logged, backed up, or proxied.
 - No telemetry or analytics are included.
 
 ## License

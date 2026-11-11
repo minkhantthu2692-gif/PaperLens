@@ -7,6 +7,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
 import { isThemePreference, THEME_PREFERENCES, type ThemePreference } from '@/app/theme/theme';
 import { useTheme } from '@/app/theme/useTheme';
+import { AiSettingsSection } from '@/features/ai/AiSettingsSection';
 import { isSupportedLanguage, type SupportedLanguage } from '@/i18n';
 import { downloadBlob } from '@/lib/file';
 import { formatBytes } from '@/lib/format';
@@ -303,6 +304,8 @@ export default function SettingsPage() {
           </div>
           <p className={styles.hint}>{t('settings.languageDescription')}</p>
         </section>
+
+        <AiSettingsSection />
 
         <section className={styles.card} aria-labelledby="settings-language-packs">
           <h2 id="settings-language-packs">{t('settings.languagePacks')}</h2>

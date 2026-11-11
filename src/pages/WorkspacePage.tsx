@@ -25,9 +25,14 @@ import { useTranslation } from 'react-i18next';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/Button';
 import type { DocumentRecord, SourceAsset } from '@/domain/document';
+import { AiAssistantDialog } from '@/features/ai/AiAssistantDialog';
 import { CleanupDialog, type CleanupScope } from '@/features/editor/CleanupDialog';
 import { OcrDialog, type OcrTarget } from '@/features/ocr/OcrDialog';
-import { EditorPanel, type SaveState } from '@/features/workspace/EditorPanel';
+import {
+  EditorPanel,
+  type EditorSelectionContext,
+  type SaveState,
+} from '@/features/workspace/EditorPanel';
 import { SourcePanel } from '@/features/workspace/SourcePanel';
 import { exportHtml, exportPlainText, printDocument } from '@/services/export/exportDocument';
 import { textToHtmlParagraphs } from '@/services/text/cleanup';
@@ -86,6 +91,8 @@ export default function WorkspacePage() {
     to: number;
   } | null>(null);
   const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [aiSelection, setAiSelection] = useState<EditorSelectionContext | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const editorRef = useRef<Editor | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<HTMLDivElement>(null);
@@ -205,6 +212,27 @@ export default function WorkspacePage() {
       setNotice(t('workspace.cleanupApplied'));
     },
     [cleanupSource, t],
+  );
+
+  const handleAiRequest = useCallback((selection: EditorSelectionContext) => {
+    setAiSelection(selection);
+    setAiOpen(true);
+  }, []);
+
+  const handleApplyAi = useCallback(
+    (text: string) => {
+      const editor = editorRef.current;
+      if (!editor || !aiSelection) {
+        return;
+      }
+      editor
+        .chain()
+        .focus()
+        .insertContentAt({ from: aiSelection.from, to: aiSelection.to }, textToHtmlParagraphs(text))
+        .run();
+      setNotice(t('assistant.applied'));
+    },
+    [aiSelection, t],
   );
 
   const handleSaveStateChange = useCallback((state: SaveState) => {
@@ -559,6 +587,7 @@ export default function WorkspacePage() {
             initialContent={document.editor}
             onEditorReady={handleEditorReady}
             onSaveStateChange={handleSaveStateChange}
+            onAiRequest={handleAiRequest}
           />
         </div>
       </div>
@@ -583,6 +612,17 @@ export default function WorkspacePage() {
         scope={cleanupSource?.scope ?? 'document'}
         onClose={() => setCleanupOpen(false)}
         onApply={handleApplyCleanup}
+      />
+
+      <AiAssistantDialog
+        open={aiOpen}
+        sourceText={aiSelection?.text ?? ''}
+        onClose={() => setAiOpen(false)}
+        onApply={handleApplyAi}
+        onOpenSettings={() => {
+          setAiOpen(false);
+          navigate('/settings');
+        }}
       />
     </div>
   );

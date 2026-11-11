@@ -170,6 +170,33 @@
   content: attr(data-placeholder);
 }
 
+.aiBubble {
+  position: fixed;
+  z-index: var(--z-overlay);
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-on-accent);
+  cursor: pointer;
+  background-color: var(--color-accent);
+  border: 0;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+}
+
+.aiBubble:hover,
+.aiBubble:focus-visible {
+  background-color: var(--color-accent-hover);
+}
+
+.aiBubble:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .footer {
   display: flex;
   flex: none;

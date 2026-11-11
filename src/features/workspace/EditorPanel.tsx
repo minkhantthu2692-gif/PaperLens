@@ -11,6 +11,7 @@ import {
   PenLine,
   Quote,
   Redo2,
+  Sparkles,
   Strikethrough,
   Underline as UnderlineIcon,
   Undo2,
@@ -25,11 +26,26 @@ import styles from './EditorPanel.module.css';
 
 export type SaveState = 'saved' | 'saving' | 'error';
 
+export interface EditorSelectionContext {
+  text: string;
+  from: number;
+  to: number;
+}
+
 interface EditorPanelProps {
   documentId: string;
   initialContent: EditorSnapshot;
   onEditorReady: (editor: Editor | null) => void;
   onSaveStateChange: (state: SaveState) => void;
+  onAiRequest: (selection: EditorSelectionContext) => void;
+}
+
+interface AiBubblePosition {
+  top: number;
+  left: number;
+  text: string;
+  from: number;
+  to: number;
 }
 
 function createSnapshot(editor: Editor): EditorSnapshot {
@@ -45,9 +61,11 @@ export function EditorPanel({
   initialContent,
   onEditorReady,
   onSaveStateChange,
+  onAiRequest,
 }: EditorPanelProps) {
   const { t } = useTranslation();
   const [stats, setStats] = useState({ words: 0, characters: 0 });
+  const [aiBubble, setAiBubble] = useState<AiBubblePosition | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const pendingRef = useRef<EditorSnapshot | null>(null);
   const onSaveStateRef = useRef(onSaveStateChange);
@@ -98,6 +116,51 @@ export function EditorPanel({
     }
     return () => onEditorReady(null);
   }, [editor, onEditorReady]);
+
+  useEffect(() => {
+    if (!editor) {
+      setAiBubble(null);
+      return;
+    }
+
+    const update = () => {
+      const { from, to, empty } = editor.state.selection;
+      if (empty || !editor.isEditable) {
+        setAiBubble(null);
+        return;
+      }
+      const text = editor.state.doc.textBetween(from, to, '\n\n');
+      if (!text.trim()) {
+        setAiBubble(null);
+        return;
+      }
+      const start = editor.view.coordsAtPos(from);
+      const end = editor.view.coordsAtPos(to);
+      const top = Math.min(start.top, end.top);
+      const bottom = Math.max(start.bottom, end.bottom);
+      const preferredTop = top > 56 ? top - 44 : bottom + 8;
+      const preferredLeft = Math.min(start.left, end.left);
+      setAiBubble({
+        top: Math.max(8, preferredTop),
+        left: Math.max(8, Math.min(preferredLeft, window.innerWidth - 190)),
+        text,
+        from,
+        to,
+      });
+    };
+
+    editor.on('selectionUpdate', update);
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    update();
+
+    return () => {
+      editor.off('selectionUpdate', update);
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+      setAiBubble(null);
+    };
+  }, [editor]);
 
   useEffect(() => {
     return () => {
@@ -317,6 +380,25 @@ export function EditorPanel({
         <span>{t('editor.words', { count: stats.words })}</span>
         <span>{t('editor.characters', { count: stats.characters })}</span>
       </footer>
+
+      {aiBubble ? (
+        <button
+          type="button"
+          className={styles.aiBubble}
+          style={{ top: aiBubble.top, left: aiBubble.left }}
+          aria-label={t('editor.aiHint')}
+          title={t('editor.aiHint')}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const selection = { text: aiBubble.text, from: aiBubble.from, to: aiBubble.to };
+            setAiBubble(null);
+            onAiRequest(selection);
+          }}
+        >
+          <Sparkles size={14} aria-hidden="true" />
+          {t('editor.aiAction')}
+        </button>
+      ) : null}
     </section>
   );
 }
