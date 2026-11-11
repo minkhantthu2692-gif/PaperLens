@@ -37,6 +37,18 @@ describe('App routing', () => {
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
   });
 
+  it('persists the Full Workspace preference without activating the mode', async () => {
+    const user = userEvent.setup();
+    renderApp('/settings');
+
+    const toggle = await screen.findByRole('switch', { name: /Enable Full Workspace Mode/ });
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+
+    expect(toggle).toBeChecked();
+    expect(localStorage.getItem('paperlens.full-workspace.enabled')).toBe('true');
+  });
+
   it('switches the interface language to Burmese', async () => {
     const user = userEvent.setup();
     renderApp('/settings');

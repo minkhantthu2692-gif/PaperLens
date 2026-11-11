@@ -5,6 +5,14 @@
   min-height: 0;
 }
 
+.workspaceTopbar {
+  flex: none;
+}
+
+.focusMode .workspaceTopbar {
+  display: none;
+}
+
 .titleInput {
   width: 100%;
   min-width: 0;
@@ -108,6 +116,19 @@
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
+.focusMode .mobileTabs {
+  display: none;
+}
+
+.focusPanels {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  animation: focusEnter var(--duration-normal) var(--easing-standard);
+}
+
+.focusPanels > .panel {
+  display: flex;
+}
+
 .panel {
   display: flex;
   min-width: 0;
@@ -173,6 +194,25 @@
   background-color: var(--color-accent);
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-md);
+}
+
+.fullscreenNotice {
+  position: fixed;
+  right: 50%;
+  bottom: var(--space-4);
+  z-index: var(--z-toast);
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  max-width: min(32rem, calc(100vw - var(--space-6)));
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  transform: translateX(50%);
 }
 
 .statePage {
@@ -248,5 +288,32 @@
 
   .mobileHidden {
     display: none;
+  }
+
+  .focusPanels {
+    grid-template-columns: minmax(0, var(--split)) var(--space-2) minmax(
+        0,
+        calc(100% - var(--split) - var(--space-2))
+      );
+    padding: var(--space-2);
+  }
+
+  .focusPanels > .splitter {
+    display: block;
+  }
+}
+
+@keyframes focusEnter {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focusPanels {
+    animation: none;
   }
 }

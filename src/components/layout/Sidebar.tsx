@@ -4,6 +4,7 @@ import { PanelLeftClose, PanelLeftOpen, FolderOpen, Settings } from 'lucide-reac
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { Logo } from '@/components/ui/Logo';
+import { useFocusMode } from './FocusModeContext';
 import styles from './Sidebar.module.css';
 
 const SIDEBAR_STORAGE_KEY = 'paperlens.sidebar';
@@ -18,6 +19,7 @@ function readCollapsed(): boolean {
 
 export function Sidebar() {
   const { t } = useTranslation();
+  const { isFocusMode } = useFocusMode();
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
   useEffect(() => {
@@ -42,8 +44,13 @@ export function Sidebar() {
   return (
     <>
       <aside
-        className={clsx(styles.sidebar, collapsed ? styles.collapsed : styles.expanded)}
+        className={clsx(
+          styles.sidebar,
+          collapsed ? styles.collapsed : styles.expanded,
+          isFocusMode && styles.focusHidden,
+        )}
         aria-label={t('nav.documents')}
+        aria-hidden={isFocusMode}
       >
         <div className={styles.brand}>
           <Logo size={30} {...(!collapsed ? { label: t('app.name') } : {})} />
@@ -71,7 +78,7 @@ export function Sidebar() {
 
         <button
           type="button"
-          className={styles.toggle}
+          className={clsx(styles.toggle, isFocusMode && styles.focusHidden)}
           onClick={() => setCollapsed((value) => !value)}
           aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
           title={collapsed ? t('nav.expand') : t('nav.collapse')}
@@ -88,7 +95,7 @@ export function Sidebar() {
       {!collapsed ? (
         <button
           type="button"
-          className={styles.scrim}
+          className={clsx(styles.scrim, isFocusMode && styles.focusHidden)}
           aria-label={t('nav.collapse')}
           onClick={() => setCollapsed(true)}
         />

@@ -1,0 +1,65 @@
+.control {
+  position: fixed;
+  z-index: var(--z-toast);
+  top: var(--space-3);
+  right: var(--space-3);
+  display: grid;
+  width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-bg-surface) 92%, transparent);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  place-items: center;
+  transform: translateY(-0.25rem);
+  transition:
+    opacity var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard),
+    transform var(--duration-fast) var(--easing-standard);
+}
+
+.control:hover,
+.control:focus-visible {
+  color: var(--color-text-accent);
+  background: var(--color-bg-surface);
+  border-color: var(--color-border-accent);
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.visible,
+.control:focus-visible {
+  opacity: 0.88;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.visible:hover,
+.visible:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .control {
+    width: 2.5rem;
+    min-height: 2.5rem;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control {
+    transition: none;
+  }
+}

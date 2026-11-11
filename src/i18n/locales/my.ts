@@ -120,6 +120,10 @@ export const my: Widen<typeof en> = {
     splitter: 'မူရင်းနှင့် တည်းဖြတ်စနစ် အကန့်များကို အရွယ်ညှိမည်',
     showSource: 'မူရင်း',
     showEditor: 'တည်းဖြတ်စနစ်',
+    focusMode: 'မျက်နှာပြင်အပြည့် Workspace မုဒ်သို့ ဝင်မည်',
+    exitFocusMode: 'Full Workspace မှ ထွက်မည်',
+    fullscreenFallback:
+      'ဘရောက်ဇာ၏ မျက်နှာပြင်အပြည့်ကို အသုံးမပြုနိုင်ပါ သို့မဟုတ် တားဆီးခံထားရသည်။ Full Workspace ကို အက်ပ်အတွင်း ဆက်လက်အသုံးပြုနိုင်သည်။',
     cleanup: 'စာသား ရှင်းလင်းမည်',
     cleanupApplied: 'ရှင်းလင်းမှု ပြီးပါပြီ။ ပြန်ပြင်ရန် နောက်ပြန်ကို အသုံးပြုပါ။',
     aiPage: 'AI လုပ်ဆောင်ချက်များ',
@@ -288,6 +292,9 @@ export const my: Widen<typeof en> = {
     subtitle: 'အပြင်အဆင်များနှင့် ဒေသတွင်း ဒေတာ ထိန်းချုပ်မှုများ။',
     appearance: 'အသွင်အပြင်',
     appearanceDescription: 'ဤစက်ပစ္စည်းတွင် PaperLens ကို မည်သို့ပြသမည်ကို ရွေးပါ။',
+    fullWorkspaceMode: 'Full Workspace မုဒ်ကို ဖွင့်ရန်',
+    fullWorkspaceModeDescription:
+      'စာရွက်စာတမ်းများတွင် Full Workspace ခလုတ်ကို ပြသမည်။ ဖွင့်ထားခြင်းဖြင့် မျက်နှာပြင်အပြည့်ကို အလိုအလျောက် မဝင်ပါ။',
     theme: 'အပြင်အဆင်',
     language: 'ဘာသာစကား',
     languageDescription: 'အင်္ဂလိပ်နှင့် မြန်မာ ပါဝင်သည်။',

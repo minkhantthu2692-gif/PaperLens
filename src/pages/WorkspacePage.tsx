@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Download,
   Eraser,
+  Focus,
   FileText,
   FileType,
   FileType2,
@@ -24,6 +25,8 @@ import {
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { TopBar } from '@/components/layout/TopBar';
+import { FocusModeExitControl } from '@/components/layout/FocusModeExitControl';
+import { useFocusMode } from '@/components/layout/FocusModeContext';
 import { Button } from '@/components/ui/Button';
 import type { DocumentRecord, SourceAsset } from '@/domain/document';
 import { AiAssistantDialog } from '@/features/ai/AiAssistantDialog';
@@ -77,6 +80,8 @@ export default function WorkspacePage() {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { isFocusMode, setFocusMode, fullWorkspaceEnabled, fullscreenError, clearFullscreenError } =
+    useFocusMode();
   const [document, setDocument] = useState<DocumentRecord | null>(null);
   const [asset, setAsset] = useState<SourceAsset | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,6 +111,8 @@ export default function WorkspacePage() {
   } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const editorRef = useRef<Editor | null>(null);
+  const focusToggleRef = useRef<HTMLButtonElement>(null);
+  const wasFocusModeRef = useRef(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -113,6 +120,13 @@ export default function WorkspacePage() {
   splitRef.current = split;
   const translationRef = useRef(t);
   translationRef.current = t;
+
+  useEffect(() => {
+    if (wasFocusModeRef.current && !isFocusMode) {
+      focusToggleRef.current?.focus();
+    }
+    wasFocusModeRef.current = isFocusMode;
+  }, [isFocusMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -469,99 +483,116 @@ export default function WorkspacePage() {
         : t('workspace.saved');
 
   return (
-    <div className={styles.page}>
-      <TopBar
-        onBack={() => navigate('/')}
-        backLabel={t('workspace.backToDocuments')}
-        title={
-          <input
-            className={styles.titleInput}
-            value={title}
-            maxLength={120}
-            aria-label={t('workspace.titleLabel')}
-            title={t('workspace.titleLabel')}
-            onChange={(event) => setTitle(event.target.value)}
-            onBlur={() => void commitTitle()}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.currentTarget.blur();
-              } else if (event.key === 'Escape') {
-                setTitle(document.title);
-                event.currentTarget.blur();
-              }
-            }}
-          />
-        }
-        subtitle={saveLabel}
-        actions={
-          <div className={styles.topActions}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleOpenCleanup}
-              disabled={!editorReady}
-            >
-              <Eraser size={16} aria-hidden="true" />
-              {t('workspace.cleanup')}
-            </Button>
-            <div className={styles.exportWrap} ref={menuRef}>
-              <Button
-                variant="primary"
-                size="sm"
-                aria-haspopup="menu"
-                aria-expanded={exportOpen}
-                onClick={() => setExportOpen((value) => !value)}
-                disabled={exporting}
-                aria-busy={exporting}
-              >
-                <Download size={16} aria-hidden="true" />
-                {exporting ? t('workspace.exporting') : t('workspace.export')}
-                <ChevronDown size={14} aria-hidden="true" />
-              </Button>
-              {exportOpen ? (
-                <div className={styles.menu} role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.menuItem}
-                    onClick={() => void handleExport('txt')}
-                  >
-                    <FileText size={16} aria-hidden="true" />
-                    {t('workspace.exportTxt')}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.menuItem}
-                    onClick={() => void handleExport('html')}
-                  >
-                    <FileType2 size={16} aria-hidden="true" />
-                    {t('workspace.exportHtml')}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.menuItem}
-                    onClick={() => void handleExport('docx')}
-                  >
-                    <FileType size={16} aria-hidden="true" />
-                    {t('workspace.exportDocx')}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.menuItem}
-                    onClick={() => void handleExport('pdf')}
-                  >
-                    <Printer size={16} aria-hidden="true" />
-                    {t('workspace.exportPdf')}
-                  </button>
-                </div>
+    <div className={clsx(styles.page, isFocusMode && styles.focusMode)}>
+      <div className={styles.workspaceTopbar}>
+        <TopBar
+          onBack={() => navigate('/')}
+          backLabel={t('workspace.backToDocuments')}
+          title={
+            <input
+              className={styles.titleInput}
+              value={title}
+              maxLength={120}
+              aria-label={t('workspace.titleLabel')}
+              title={t('workspace.titleLabel')}
+              onChange={(event) => setTitle(event.target.value)}
+              onBlur={() => void commitTitle()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur();
+                } else if (event.key === 'Escape') {
+                  setTitle(document.title);
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+          }
+          subtitle={saveLabel}
+          actions={
+            <div className={styles.topActions}>
+              {fullWorkspaceEnabled ? (
+                <Button
+                  ref={focusToggleRef}
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  onClick={() => setFocusMode(true)}
+                  disabled={!editorReady}
+                  aria-label={t('workspace.focusMode')}
+                  title={t('workspace.focusMode')}
+                  aria-pressed={isFocusMode}
+                >
+                  <Focus size={17} aria-hidden="true" />
+                </Button>
               ) : null}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleOpenCleanup}
+                disabled={!editorReady}
+              >
+                <Eraser size={16} aria-hidden="true" />
+                {t('workspace.cleanup')}
+              </Button>
+              <div className={styles.exportWrap} ref={menuRef}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  aria-haspopup="menu"
+                  aria-expanded={exportOpen}
+                  onClick={() => setExportOpen((value) => !value)}
+                  disabled={exporting}
+                  aria-busy={exporting}
+                >
+                  <Download size={16} aria-hidden="true" />
+                  {exporting ? t('workspace.exporting') : t('workspace.export')}
+                  <ChevronDown size={14} aria-hidden="true" />
+                </Button>
+                {exportOpen ? (
+                  <div className={styles.menu} role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.menuItem}
+                      onClick={() => void handleExport('txt')}
+                    >
+                      <FileText size={16} aria-hidden="true" />
+                      {t('workspace.exportTxt')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.menuItem}
+                      onClick={() => void handleExport('html')}
+                    >
+                      <FileType2 size={16} aria-hidden="true" />
+                      {t('workspace.exportHtml')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.menuItem}
+                      onClick={() => void handleExport('docx')}
+                    >
+                      <FileType size={16} aria-hidden="true" />
+                      {t('workspace.exportDocx')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.menuItem}
+                      onClick={() => void handleExport('pdf')}
+                    >
+                      <Printer size={16} aria-hidden="true" />
+                      {t('workspace.exportPdf')}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        }
-      />
+          }
+        />
+      </div>
 
       {error ? (
         <div className={styles.errorBanner} role="alert">
@@ -572,6 +603,22 @@ export default function WorkspacePage() {
             size="sm"
             iconOnly
             onClick={() => setError(null)}
+            aria-label={t('common.dismiss')}
+            title={t('common.dismiss')}
+          >
+            <X size={15} aria-hidden="true" />
+          </Button>
+        </div>
+      ) : null}
+
+      {fullscreenError ? (
+        <div className={styles.fullscreenNotice} role="status">
+          <span>{t('workspace.fullscreenFallback')}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            onClick={clearFullscreenError}
             aria-label={t('common.dismiss')}
             title={t('common.dismiss')}
           >
@@ -603,7 +650,7 @@ export default function WorkspacePage() {
 
       <div
         ref={panelsRef}
-        className={styles.panels}
+        className={clsx(styles.panels, isFocusMode && styles.focusPanels)}
         style={{ '--split': `${split}%` } as CSSProperties}
       >
         <div className={clsx(styles.panel, mobilePanel !== 'source' && styles.mobileHidden)}>
@@ -624,6 +671,8 @@ export default function WorkspacePage() {
             <p className={styles.panelFallback}>{t('workspace.sourceError')}</p>
           )}
         </div>
+
+        {isFocusMode ? <FocusModeExitControl onExit={() => setFocusMode(false)} /> : null}
 
         <div
           className={styles.splitter}
@@ -650,6 +699,7 @@ export default function WorkspacePage() {
             key={document.id}
             documentId={document.id}
             initialContent={document.editor}
+            fullWorkspace={isFocusMode}
             onEditorReady={handleEditorReady}
             onSaveStateChange={handleSaveStateChange}
             onAiRequest={handleAiRequest}

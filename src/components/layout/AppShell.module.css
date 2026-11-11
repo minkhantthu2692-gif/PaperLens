@@ -21,8 +21,16 @@
   overflow: hidden;
 }
 
+.focusShell .workspace {
+  margin-left: 0;
+}
+
 @media (max-width: 48rem) {
   .workspace {
     margin-left: var(--layout-sidebar-compact);
+  }
+
+  .focusShell .workspace {
+    margin-left: 0;
   }
 }

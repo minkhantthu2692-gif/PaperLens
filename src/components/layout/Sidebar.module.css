@@ -21,6 +21,26 @@
   align-items: center;
 }
 
+.focusHidden {
+  width: 0;
+  padding-right: 0;
+  padding-left: 0;
+  overflow: hidden;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar.focusHidden {
+  width: 0;
+  min-width: 0;
+  border-right: 0;
+}
+
+.scrim.focusHidden {
+  display: none;
+}
+
 .brand {
   display: flex;
   align-items: center;

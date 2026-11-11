@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'reac
 import { Download, HardDrive, Languages, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TopBar } from '@/components/layout/TopBar';
+import { useFocusMode } from '@/components/layout/FocusModeContext';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
@@ -93,6 +94,7 @@ function restoreErrorKey(error: unknown): RestoreErrorKey {
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { preference, setPreference } = useTheme();
+  const { fullWorkspaceEnabled, setFullWorkspaceEnabled } = useFocusMode();
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -312,6 +314,18 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+            <label className={styles.fullWorkspaceSetting}>
+              <span className={styles.fullWorkspaceSettingText}>
+                <span className={styles.label}>{t('settings.fullWorkspaceMode')}</span>
+                <span className={styles.hint}>{t('settings.fullWorkspaceModeDescription')}</span>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={fullWorkspaceEnabled}
+                onChange={(event) => setFullWorkspaceEnabled(event.target.checked)}
+              />
+            </label>
             <p className={styles.hint}>{t('settings.languageDescription')}</p>
           </div>
         </section>

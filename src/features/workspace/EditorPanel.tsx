@@ -40,6 +40,7 @@ export interface EditorSelectionContext {
 interface EditorPanelProps {
   documentId: string;
   initialContent: EditorSnapshot;
+  fullWorkspace?: boolean;
   onEditorReady: (editor: Editor | null) => void;
   onSaveStateChange: (state: SaveState) => void;
   onAiRequest: (selection: EditorSelectionContext) => void;
@@ -64,6 +65,7 @@ function createSnapshot(editor: Editor): EditorSnapshot {
 export function EditorPanel({
   documentId,
   initialContent,
+  fullWorkspace = false,
   onEditorReady,
   onSaveStateChange,
   onAiRequest,
@@ -239,13 +241,20 @@ export function EditorPanel({
   };
 
   return (
-    <section className={styles.shell} aria-label={t('workspace.editor')}>
+    <section
+      className={`${styles.shell} ${fullWorkspace ? styles.fullWorkspace : ''}`}
+      aria-label={t('workspace.editor')}
+    >
       <header className={styles.panelHeader}>
         <PenLine size={16} aria-hidden="true" />
         <span>{t('workspace.editor')}</span>
       </header>
 
-      <div className={styles.toolbar} role="toolbar" aria-label={t('editor.label')}>
+      <div
+        className={`${styles.toolbar} ${fullWorkspace ? styles.fullWorkspaceToolbar : ''}`}
+        role="toolbar"
+        aria-label={t('editor.label')}
+      >
         <Button
           variant="ghost"
           size="sm"

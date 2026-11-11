@@ -113,6 +113,10 @@ export const en = {
     splitter: 'Resize source and editor panels',
     showSource: 'Source',
     showEditor: 'Editor',
+    focusMode: 'Enter Full Workspace Mode',
+    exitFocusMode: 'Exit Full Workspace',
+    fullscreenFallback:
+      'Browser fullscreen is unavailable or was blocked. Full Workspace remains active in the app.',
     cleanup: 'Clean up text',
     cleanupApplied: 'Cleanup applied. Use Undo to revert.',
     aiPage: 'AI actions',
@@ -277,6 +281,9 @@ export const en = {
     subtitle: 'Preferences and local data controls.',
     appearance: 'Appearance',
     appearanceDescription: 'Choose how PaperLens looks on this device.',
+    fullWorkspaceMode: 'Enable Full Workspace Mode',
+    fullWorkspaceModeDescription:
+      'Show the Full Workspace control in documents. Enabling this does not enter fullscreen automatically.',
     theme: 'Theme',
     language: 'Language',
     languageDescription: 'English and Burmese are included.',
