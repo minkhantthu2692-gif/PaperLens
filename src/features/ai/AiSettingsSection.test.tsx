@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import i18n from '@/i18n';
 import { getActiveApiKey, listApiKeys } from '@/services/ai/keys';
+import { loadAiSettings } from '@/services/ai/settings';
 import { AiSettingsSection } from './AiSettingsSection';
 
 async function addKey(
@@ -35,7 +36,9 @@ describe('AiSettingsSection key vault', () => {
 
     await user.click(screen.getByRole('button', { name: 'Provider' }));
 
-    const options = screen.getAllByRole('option');
+    const options = within(screen.getByRole('listbox', { name: 'Provider' })).getAllByRole(
+      'option',
+    );
     expect(options).toHaveLength(10);
     options.forEach((option) => {
       expect(option.querySelector('svg')).toBeInTheDocument();
@@ -68,6 +71,40 @@ describe('AiSettingsSection key vault', () => {
 
     await user.click(screen.getByRole('switch', { name: /Remember the API key/ }));
     expect(localStorage.getItem('paperlens.ai.keys')).toContain('sk-personal-key');
+  });
+
+  it('saves assistant defaults, favorites, presets, and history privacy', async () => {
+    const user = userEvent.setup();
+    render(<AiSettingsSection />);
+
+    await user.selectOptions(screen.getByLabelText('Default tone'), 'casual');
+    await user.selectOptions(screen.getByLabelText('Default output length'), 'short');
+    await user.selectOptions(screen.getByLabelText('Default translation target'), 'my');
+    await user.selectOptions(screen.getByLabelText('Translation style'), 'formal');
+    await user.click(screen.getByRole('button', { name: 'Choose manually' }));
+    await user.selectOptions(screen.getByLabelText('Source language'), 'en');
+    await user.click(screen.getByRole('button', { name: 'Simplify' }));
+
+    await user.type(screen.getByLabelText('Preset name'), 'Brief');
+    await user.type(screen.getByLabelText('Instruction'), 'Make it brief.');
+    await user.click(screen.getByRole('button', { name: 'Add preset' }));
+    await user.click(screen.getByRole('switch', { name: /Save AI results in history/ }));
+    await user.click(screen.getByRole('button', { name: 'Save AI settings' }));
+
+    const saved = loadAiSettings().assistant;
+    expect(saved).toMatchObject({
+      tone: 'casual',
+      outputLength: 'short',
+      translationTargetLanguage: 'my',
+      translationStyle: 'formal',
+      sourceLanguageMode: 'manual',
+      sourceLanguage: 'en',
+      historyEnabled: true,
+    });
+    expect(saved.favoriteActions).toContain('simplify');
+    expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument();
+    expect(saved.presets).toHaveLength(1);
+    expect(saved.presets[0]).toMatchObject({ name: 'Brief', instruction: 'Make it brief.' });
   });
 
   it('keeps all fetched models available and records selected models as recent', async () => {

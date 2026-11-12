@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { addApiKey, getActiveApiKey } from './keys';
 import { loadAiSettings, saveAiSettings } from './settings';
-import { DEFAULT_AI_CACHE_SETTINGS, DEFAULT_AI_SETTINGS } from './types';
+import {
+  DEFAULT_AI_ASSISTANT_PREFERENCES,
+  DEFAULT_AI_CACHE_SETTINGS,
+  DEFAULT_AI_SETTINGS,
+} from './types';
 
 beforeEach(() => {
   localStorage.clear();
@@ -41,6 +45,54 @@ describe('AI settings storage', () => {
     saveAiSettings({ ...DEFAULT_AI_SETTINGS, model: 'test-model', rememberKey: false });
     expect(localStorage.getItem('paperlens.ai.keys')).toBeNull();
     expect(getActiveApiKey('openai')?.key).toBe('session-key');
+  });
+
+  it('loads default assistant preferences for settings saved before them', () => {
+    expect(loadAiSettings().assistant).toEqual({
+      ...DEFAULT_AI_ASSISTANT_PREFERENCES,
+      favoriteActions: [...DEFAULT_AI_ASSISTANT_PREFERENCES.favoriteActions],
+    });
+
+    localStorage.setItem('paperlens.ai.settings', JSON.stringify({ model: 'test-model' }));
+    expect(loadAiSettings().assistant).toEqual({
+      ...DEFAULT_AI_ASSISTANT_PREFERENCES,
+      favoriteActions: [...DEFAULT_AI_ASSISTANT_PREFERENCES.favoriteActions],
+    });
+  });
+
+  it('normalizes invalid assistant preferences and preset data', () => {
+    localStorage.setItem(
+      'paperlens.ai.settings',
+      JSON.stringify({
+        assistant: {
+          tone: 'shouting',
+          outputLength: 'tiny',
+          translationStyle: 'poetic',
+          sourceLanguageMode: 'guess',
+          translationTargetLanguage: '  ',
+          favoriteActions: ['proofread', 'proofread', 7, 'rewrite'],
+          presets: [
+            { id: 'a', name: '  Short  ', instruction: '  Trim this.  ' },
+            { id: '', name: 'Invalid', instruction: 'Missing id' },
+            { id: 'b', name: '', instruction: 'Missing name' },
+            'not-a-preset',
+          ],
+          historyEnabled: true,
+        },
+      }),
+    );
+
+    const preferences = loadAiSettings().assistant;
+    expect(preferences.tone).toBe(DEFAULT_AI_ASSISTANT_PREFERENCES.tone);
+    expect(preferences.outputLength).toBe(DEFAULT_AI_ASSISTANT_PREFERENCES.outputLength);
+    expect(preferences.translationStyle).toBe(DEFAULT_AI_ASSISTANT_PREFERENCES.translationStyle);
+    expect(preferences.sourceLanguageMode).toBe('auto');
+    expect(preferences.translationTargetLanguage).toBe(
+      DEFAULT_AI_ASSISTANT_PREFERENCES.translationTargetLanguage,
+    );
+    expect(preferences.favoriteActions).toEqual(['proofread', 'rewrite']);
+    expect(preferences.presets).toEqual([{ id: 'a', name: 'Short', instruction: 'Trim this.' }]);
+    expect(preferences.historyEnabled).toBe(true);
   });
 
   it('migrates the legacy single-key storage into the key vault', () => {

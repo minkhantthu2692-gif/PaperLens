@@ -3,6 +3,7 @@ import {
   BrainCircuit,
   Boxes,
   Flame,
+  History,
   Network,
   Orbit,
   Plus,
@@ -28,6 +29,12 @@ import {
 } from './SearchablePicker';
 import { clearAiCache, getAiCacheCount } from '@/services/ai/cache';
 import {
+  clearAiHistory,
+  deleteAiHistoryEntry,
+  listAiHistory,
+  type AiHistoryRecord,
+} from '@/services/ai/history';
+import {
   addApiKey,
   clearApiKeys,
   getActiveApiKey,
@@ -39,7 +46,21 @@ import {
 } from '@/services/ai/keys';
 import { AI_PROVIDERS, fetchProviderModels, getProviderDefinition } from '@/services/ai/providers';
 import { loadAiSettings, saveAiSettings } from '@/services/ai/settings';
-import type { AiCacheSettings, AiGuardrails, AiProviderId, AiSettings } from '@/services/ai/types';
+import type {
+  AiAssistantPreferences,
+  AiCacheSettings,
+  AiGuardrails,
+  AiProviderId,
+  AiSettings,
+} from '@/services/ai/types';
+import {
+  AI_ACTIONS,
+  AI_ACTION_CATEGORIES,
+  AI_CATEGORY_LABEL_KEYS,
+  getAiAction,
+} from './actionCatalog';
+import { TRANSLATION_LANGUAGES } from '@/features/translator/languages';
+import { createId } from '@/lib/id';
 import { getAiUsageSummary, resetAiUsage } from '@/services/ai/usage';
 import styles from './AiSettingsSection.module.css';
 
@@ -150,6 +171,9 @@ export function AiSettingsSection() {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [usage, setUsage] = useState(getAiUsageSummary);
   const [cacheCount, setCacheCount] = useState(0);
+  const [history, setHistory] = useState<AiHistoryRecord[]>([]);
+  const [presetName, setPresetName] = useState('');
+  const [presetInstruction, setPresetInstruction] = useState('');
 
   const provider = getProviderDefinition(settings.providerId);
   const activeKey = keys.find((entry) => entry.id === activeKeyId) ?? keys[0] ?? null;
@@ -174,6 +198,15 @@ export function AiSettingsSection() {
       .catch(() => {
         // The cache may be unavailable in private browsing modes.
       });
+    listAiHistory()
+      .then((records) => {
+        if (active) {
+          setHistory(records);
+        }
+      })
+      .catch(() => {
+        // History may be unavailable in private browsing modes.
+      });
     return () => {
       active = false;
     };
@@ -191,6 +224,80 @@ export function AiSettingsSection() {
       ...current,
       cache: { ...current.cache, [key]: value },
     }));
+  };
+
+  const updateAssistant = <Key extends keyof AiAssistantPreferences>(
+    key: Key,
+    value: AiAssistantPreferences[Key],
+  ) => {
+    setSettings((current) => ({
+      ...current,
+      assistant: { ...current.assistant, [key]: value },
+    }));
+  };
+
+  const toggleFavorite = (actionId: string) => {
+    setSettings((current) => {
+      const favorites = current.assistant.favoriteActions;
+      return {
+        ...current,
+        assistant: {
+          ...current.assistant,
+          favoriteActions: favorites.includes(actionId)
+            ? favorites.filter((id) => id !== actionId)
+            : [...favorites, actionId],
+        },
+      };
+    });
+  };
+
+  const handleAddPreset = () => {
+    if (!presetName.trim() || !presetInstruction.trim()) {
+      setFeedback({ type: 'error', text: t('settings.aiPresetEmpty') });
+      return;
+    }
+    if (settings.assistant.presets.length >= 12) {
+      setFeedback({ type: 'error', text: t('settings.aiPresetLimit') });
+      return;
+    }
+    updateAssistant('presets', [
+      ...settings.assistant.presets,
+      {
+        id: createId(),
+        name: presetName.trim().slice(0, 60),
+        instruction: presetInstruction.trim().slice(0, 500),
+      },
+    ]);
+    setPresetName('');
+    setPresetInstruction('');
+    setFeedback({ type: 'success', text: t('settings.aiPresetAdded') });
+  };
+
+  const handleRemovePreset = (id: string) => {
+    updateAssistant(
+      'presets',
+      settings.assistant.presets.filter((preset) => preset.id !== id),
+    );
+    setFeedback({ type: 'success', text: t('settings.aiPresetRemoved') });
+  };
+
+  const handleClearHistory = async () => {
+    try {
+      await clearAiHistory();
+      setHistory([]);
+      setFeedback({ type: 'success', text: t('settings.aiHistoryCleared') });
+    } catch {
+      setFeedback({ type: 'error', text: t('settings.aiHistoryClearError') });
+    }
+  };
+
+  const handleDeleteHistoryEntry = async (id: string) => {
+    try {
+      await deleteAiHistoryEntry(id);
+      setHistory((records) => records.filter((entry) => entry.id !== id));
+    } catch {
+      setFeedback({ type: 'error', text: t('settings.aiHistoryClearError') });
+    }
   };
 
   const handleSave = () => {
@@ -621,6 +728,331 @@ export function AiSettingsSection() {
           </div>
         </div>
       ) : null}
+
+      <section className={styles.assistantDefaults} aria-labelledby="settings-ai-defaults">
+        <div className={styles.defaultsHeader}>
+          <h3 id="settings-ai-defaults">{t('settings.aiAssistantDefaults')}</h3>
+          <p className={styles.hint}>{t('settings.aiAssistantDefaultsHint')}</p>
+        </div>
+
+        <div className={styles.grid}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ai-tone">
+              {t('settings.aiTone')}
+            </label>
+            <select
+              id="ai-tone"
+              className={formStyles.select}
+              value={settings.assistant.tone}
+              onChange={(event) =>
+                updateAssistant('tone', event.target.value as AiAssistantPreferences['tone'])
+              }
+            >
+              <option value="academic">{t('settings.aiToneAcademic')}</option>
+              <option value="professional">{t('settings.aiToneProfessional')}</option>
+              <option value="casual">{t('settings.aiToneCasual')}</option>
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ai-output-length">
+              {t('settings.aiOutputLength')}
+            </label>
+            <select
+              id="ai-output-length"
+              className={formStyles.select}
+              value={settings.assistant.outputLength}
+              onChange={(event) =>
+                updateAssistant(
+                  'outputLength',
+                  event.target.value as AiAssistantPreferences['outputLength'],
+                )
+              }
+            >
+              <option value="short">{t('settings.aiLengthShort')}</option>
+              <option value="balanced">{t('settings.aiLengthBalanced')}</option>
+              <option value="detailed">{t('settings.aiLengthDetailed')}</option>
+            </select>
+          </div>
+        </div>
+
+        <div className={styles.optionGrid}>
+          <label className={styles.option}>
+            <input
+              type="checkbox"
+              checked={settings.assistant.preserveFormatting}
+              onChange={(event) => updateAssistant('preserveFormatting', event.target.checked)}
+            />
+            <span>
+              <span className={styles.optionLabel}>{t('settings.aiPreserveFormatting')}</span>
+              <span className={styles.hint}>{t('settings.aiPreserveFormattingHint')}</span>
+            </span>
+          </label>
+          <label className={styles.option}>
+            <input
+              type="checkbox"
+              checked={settings.assistant.contextAwareness}
+              onChange={(event) => updateAssistant('contextAwareness', event.target.checked)}
+            />
+            <span>
+              <span className={styles.optionLabel}>{t('settings.aiContextAwareness')}</span>
+              <span className={styles.hint}>{t('settings.aiContextAwarenessHint')}</span>
+            </span>
+          </label>
+        </div>
+
+        <div className={styles.translationBlock}>
+          <div className={styles.defaultsHeader}>
+            <h4 className={styles.subheading}>{t('settings.aiTranslatorDefaults')}</h4>
+            <p className={styles.hint}>{t('settings.aiTranslatorDefaultsHint')}</p>
+          </div>
+          <div className={styles.grid}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ai-default-target">
+                {t('settings.aiDefaultTarget')}
+              </label>
+              <select
+                id="ai-default-target"
+                className={formStyles.select}
+                value={settings.assistant.translationTargetLanguage}
+                onChange={(event) =>
+                  updateAssistant('translationTargetLanguage', event.target.value)
+                }
+              >
+                {TRANSLATION_LANGUAGES.map((language) => (
+                  <option key={language.code} value={language.code}>
+                    {language.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ai-translation-style">
+                {t('settings.aiTranslationStyle')}
+              </label>
+              <select
+                id="ai-translation-style"
+                className={formStyles.select}
+                value={settings.assistant.translationStyle}
+                onChange={(event) =>
+                  updateAssistant(
+                    'translationStyle',
+                    event.target.value as AiAssistantPreferences['translationStyle'],
+                  )
+                }
+              >
+                <option value="natural">{t('settings.aiStyleNatural')}</option>
+                <option value="formal">{t('settings.aiStyleFormal')}</option>
+                <option value="literal">{t('settings.aiStyleLiteral')}</option>
+              </select>
+            </div>
+          </div>
+
+          <div className={styles.field}>
+            <span className={styles.label} id="ai-source-detection">
+              {t('settings.aiSourceDetection')}
+            </span>
+            <div className={styles.segmented} role="group" aria-labelledby="ai-source-detection">
+              <button
+                type="button"
+                className={styles.segment}
+                aria-pressed={settings.assistant.sourceLanguageMode === 'auto'}
+                onClick={() => updateAssistant('sourceLanguageMode', 'auto')}
+              >
+                {t('settings.aiSourceAuto')}
+              </button>
+              <button
+                type="button"
+                className={styles.segment}
+                aria-pressed={settings.assistant.sourceLanguageMode === 'manual'}
+                onClick={() => updateAssistant('sourceLanguageMode', 'manual')}
+              >
+                {t('settings.aiSourceManual')}
+              </button>
+            </div>
+            {settings.assistant.sourceLanguageMode === 'manual' ? (
+              <select
+                className={formStyles.select}
+                aria-label={t('settings.aiSourceLanguage')}
+                value={settings.assistant.sourceLanguage}
+                onChange={(event) => updateAssistant('sourceLanguage', event.target.value)}
+              >
+                {TRANSLATION_LANGUAGES.map((language) => (
+                  <option key={language.code} value={language.code}>
+                    {language.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <p className={styles.hint}>{t('settings.aiSourceDetectionHint')}</p>
+          </div>
+        </div>
+
+        <div className={styles.field}>
+          <span className={styles.label}>{t('settings.aiFavorites')}</span>
+          <p className={styles.hint}>{t('settings.aiFavoritesHint')}</p>
+          <div className={styles.actionGroups}>
+            {AI_ACTION_CATEGORIES.map((category) => (
+              <div key={category} className={styles.actionGroup}>
+                <span className={styles.actionGroupLabel}>
+                  {t(AI_CATEGORY_LABEL_KEYS[category])}
+                </span>
+                <div className={styles.chipRow}>
+                  {AI_ACTIONS.filter((entry) => entry.category === category).map((entry) => {
+                    const active = settings.assistant.favoriteActions.includes(entry.id);
+                    return (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        className={active ? styles.chipActive : styles.chip}
+                        aria-pressed={active}
+                        onClick={() => toggleFavorite(entry.id)}
+                      >
+                        {t(entry.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.field}>
+          <span className={styles.label}>{t('settings.aiPresets')}</span>
+          <p className={styles.hint}>{t('settings.aiPresetsHint')}</p>
+          {settings.assistant.presets.length === 0 ? (
+            <p className={styles.hint}>{t('settings.aiNoPresets')}</p>
+          ) : (
+            <ul className={styles.presetList}>
+              {settings.assistant.presets.map((preset) => (
+                <li key={preset.id} className={styles.presetRow}>
+                  <span className={styles.presetInfo}>
+                    <span className={styles.presetName}>{preset.name}</span>
+                    <span className={styles.hint}>{preset.instruction}</span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    onClick={() => handleRemovePreset(preset.id)}
+                    aria-label={t('settings.aiRemovePreset', { name: preset.name })}
+                    title={t('settings.aiRemovePreset', { name: preset.name })}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className={styles.grid}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ai-preset-name">
+                {t('settings.aiPresetName')}
+              </label>
+              <input
+                id="ai-preset-name"
+                className={formStyles.input}
+                value={presetName}
+                maxLength={60}
+                placeholder={t('settings.aiPresetNamePlaceholder')}
+                onChange={(event) => setPresetName(event.target.value)}
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ai-preset-instruction">
+                {t('settings.aiPresetInstruction')}
+              </label>
+              <input
+                id="ai-preset-instruction"
+                className={formStyles.input}
+                value={presetInstruction}
+                maxLength={500}
+                placeholder={t('settings.aiPresetInstructionPlaceholder')}
+                onChange={(event) => setPresetInstruction(event.target.value)}
+              />
+            </div>
+          </div>
+          <div className={styles.actions}>
+            <Button variant="secondary" size="sm" onClick={handleAddPreset}>
+              <Plus size={15} aria-hidden="true" />
+              {t('settings.aiAddPreset')}
+            </Button>
+          </div>
+        </div>
+
+        <div className={styles.historyRow} role="group" aria-labelledby="settings-ai-history">
+          <div className={styles.defaultsHeader}>
+            <h3 id="settings-ai-history">
+              <History size={16} aria-hidden="true" /> {t('settings.aiHistory')}
+            </h3>
+            <p className={styles.hint}>{t('settings.aiHistoryHint')}</p>
+          </div>
+          <label className={styles.checkbox}>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={settings.assistant.historyEnabled}
+              onChange={(event) => updateAssistant('historyEnabled', event.target.checked)}
+            />
+            <span className={styles.checkboxText}>
+              <span className={styles.checkboxLabel}>{t('settings.aiHistoryEnable')}</span>
+              <span className={styles.hint}>{t('settings.aiHistoryEnableHint')}</span>
+            </span>
+          </label>
+          <div className={styles.usageRow}>
+            <span className={styles.usage}>
+              {t('settings.aiHistoryCount', { count: history.length })}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleClearHistory()}
+              disabled={history.length === 0}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              {t('settings.aiHistoryClear')}
+            </Button>
+          </div>
+          {history.length > 0 ? (
+            <details className={styles.historyDetails}>
+              <summary className={styles.summary}>{t('settings.aiHistoryRecent')}</summary>
+              <ul className={styles.historyList}>
+                {history.map((entry) => {
+                  const action = getAiAction(entry.actionId);
+                  return (
+                    <li key={entry.id} className={styles.historyItem}>
+                      <div className={styles.historyMeta}>
+                        <span>
+                          {action ? t(action.labelKey) : entry.task}
+                          {' · '}
+                          {new Intl.DateTimeFormat(undefined, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          }).format(entry.createdAt)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          iconOnly
+                          onClick={() => void handleDeleteHistoryEntry(entry.id)}
+                          aria-label={t('settings.aiHistoryDelete')}
+                          title={t('settings.aiHistoryDelete')}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </Button>
+                      </div>
+                      <p className={styles.historySource}>{entry.sourceText}</p>
+                      <p className={styles.historyResult}>{entry.resultText}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          ) : (
+            <p className={styles.hint}>{t('settings.aiHistoryEmpty')}</p>
+          )}
+        </div>
+      </section>
 
       <div className={styles.usageRow}>
         <span className={styles.usage}>{t('settings.aiCacheCount', { count: cacheCount })}</span>

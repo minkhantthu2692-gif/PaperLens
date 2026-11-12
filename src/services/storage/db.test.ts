@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe('database migrations', () => {
-  it('adds translation history when upgrading a version 2 database', async () => {
+  it('adds translation history and AI history when upgrading a version 2 database', async () => {
     const database = fakeDatabase();
     openDBMock.mockImplementation(
       (
@@ -41,12 +41,36 @@ describe('database migrations', () => {
     const { DATABASE_VERSION, getDatabase } = await import('./db');
     await getDatabase();
 
-    expect(DATABASE_VERSION).toBe(3);
-    expect(database.createObjectStore).toHaveBeenCalledTimes(1);
+    expect(DATABASE_VERSION).toBe(4);
+    expect(database.createObjectStore).toHaveBeenCalledTimes(2);
     expect(database.createObjectStore).toHaveBeenCalledWith('translationHistory', {
       keyPath: 'id',
     });
-    expect(database.stores[0]?.createIndex).toHaveBeenCalledWith('by-createdAt', 'createdAt');
+    expect(database.createObjectStore).toHaveBeenCalledWith('aiHistory', { keyPath: 'id' });
+    expect(database.stores.map((store) => store.name)).toEqual(['translationHistory', 'aiHistory']);
+    for (const store of database.stores) {
+      expect(store.createIndex).toHaveBeenCalledWith('by-createdAt', 'createdAt');
+    }
+  });
+
+  it('adds AI history when upgrading a version 3 database', async () => {
+    const database = fakeDatabase();
+    openDBMock.mockImplementation(
+      (
+        _name: string,
+        _version: number,
+        config: { upgrade: (db: unknown, oldVersion: number) => void },
+      ) => {
+        config.upgrade(database, 3);
+        return Promise.resolve(database);
+      },
+    );
+
+    const { getDatabase } = await import('./db');
+    await getDatabase();
+
+    expect(database.createObjectStore).toHaveBeenCalledTimes(1);
+    expect(database.createObjectStore).toHaveBeenCalledWith('aiHistory', { keyPath: 'id' });
   });
 
   it('creates all stores for a fresh database', async () => {
@@ -70,6 +94,7 @@ describe('database migrations', () => {
       'assets',
       'aiCache',
       'translationHistory',
+      'aiHistory',
     ]);
   });
 });

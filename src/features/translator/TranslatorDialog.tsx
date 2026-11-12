@@ -143,6 +143,22 @@ export function TranslatorDialog({ open, onClose, onOpenSettings }: TranslatorDi
     setConfigured(
       Boolean(settings.model.trim() && getActiveApiKey(settings.providerId)?.key.trim()),
     );
+    // The translator and the document assistant share one set of AI
+    // preferences, so the saved translation defaults seed this dialog.
+    const preferences = settings.assistant;
+    if (
+      TRANSLATION_LANGUAGES.some(
+        (language) => language.code === preferences.translationTargetLanguage,
+      )
+    ) {
+      setTargetLanguage(preferences.translationTargetLanguage);
+    }
+    setSourceLanguage(
+      preferences.sourceLanguageMode === 'manual' &&
+        TRANSLATION_LANGUAGES.some((language) => language.code === preferences.sourceLanguage)
+        ? preferences.sourceLanguage
+        : 'auto',
+    );
     return () => {
       abortControllerRef.current?.abort();
       if (copiedTimerRef.current !== null) {
@@ -226,6 +242,7 @@ export function TranslatorDialog({ open, onClose, onOpenSettings }: TranslatorDi
         targetLanguage: getLanguageName(targetLanguage),
         ...(sourceName ? { sourceLanguage: sourceName } : {}),
         ...(detect ? { detectSourceLanguage: true } : {}),
+        options: { translationStyle: settings.assistant.translationStyle },
         signal: controller.signal,
       });
       setTranslation(response.text);

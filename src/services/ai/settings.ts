@@ -1,13 +1,24 @@
 import { migrateLegacyApiKey, syncApiKeyStorage } from './keys';
 import {
+  DEFAULT_AI_ASSISTANT_PREFERENCES,
   DEFAULT_AI_CACHE_SETTINGS,
   DEFAULT_AI_GUARDRAILS,
   DEFAULT_AI_SETTINGS,
+  isAiOutputLength,
   isAiProviderId,
+  isAiSourceLanguageMode,
+  isAiTone,
+  isAiTranslationStyle,
+  type AiAssistantPreferences,
   type AiCacheSettings,
   type AiGuardrails,
+  type AiPreset,
   type AiSettings,
 } from './types';
+
+const MAX_PRESETS = 12;
+const MAX_PRESET_NAME = 60;
+const MAX_PRESET_INSTRUCTION = 500;
 
 const SETTINGS_STORAGE_KEY = 'paperlens.ai.settings';
 
@@ -77,6 +88,84 @@ function normalizeCacheSettings(value: unknown): AiCacheSettings {
   };
 }
 
+function normalizePreset(value: unknown): AiPreset | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const id = record['id'];
+  const name = record['name'];
+  const instruction = record['instruction'];
+  if (
+    typeof id !== 'string' ||
+    !id ||
+    typeof name !== 'string' ||
+    typeof instruction !== 'string'
+  ) {
+    return null;
+  }
+  const trimmedName = name.trim().slice(0, MAX_PRESET_NAME);
+  const trimmedInstruction = instruction.trim().slice(0, MAX_PRESET_INSTRUCTION);
+  if (!trimmedName || !trimmedInstruction) {
+    return null;
+  }
+  return { id, name: trimmedName, instruction: trimmedInstruction };
+}
+
+function normalizeAssistantPreferences(value: unknown): AiAssistantPreferences {
+  const record =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const defaults = DEFAULT_AI_ASSISTANT_PREFERENCES;
+  const presets = Array.isArray(record['presets'])
+    ? record['presets']
+        .map(normalizePreset)
+        .filter((preset): preset is AiPreset => preset !== null)
+        .slice(0, MAX_PRESETS)
+    : [];
+  const favorites = Array.isArray(record['favoriteActions'])
+    ? [
+        ...new Set(
+          record['favoriteActions'].filter(
+            (entry): entry is string => typeof entry === 'string' && entry.length > 0,
+          ),
+        ),
+      ].slice(0, 12)
+    : [...defaults.favoriteActions];
+
+  return {
+    translationTargetLanguage:
+      typeof record['translationTargetLanguage'] === 'string' &&
+      record['translationTargetLanguage'].trim()
+        ? record['translationTargetLanguage'].trim()
+        : defaults.translationTargetLanguage,
+    sourceLanguageMode: isAiSourceLanguageMode(record['sourceLanguageMode'])
+      ? record['sourceLanguageMode']
+      : defaults.sourceLanguageMode,
+    sourceLanguage:
+      typeof record['sourceLanguage'] === 'string' && record['sourceLanguage'].trim()
+        ? record['sourceLanguage'].trim()
+        : defaults.sourceLanguage,
+    translationStyle: isAiTranslationStyle(record['translationStyle'])
+      ? record['translationStyle']
+      : defaults.translationStyle,
+    tone: isAiTone(record['tone']) ? record['tone'] : defaults.tone,
+    outputLength: isAiOutputLength(record['outputLength'])
+      ? record['outputLength']
+      : defaults.outputLength,
+    preserveFormatting:
+      typeof record['preserveFormatting'] === 'boolean'
+        ? record['preserveFormatting']
+        : defaults.preserveFormatting,
+    contextAwareness:
+      typeof record['contextAwareness'] === 'boolean'
+        ? record['contextAwareness']
+        : defaults.contextAwareness,
+    favoriteActions: favorites,
+    presets,
+    historyEnabled: record['historyEnabled'] === true,
+  };
+}
+
 function normalizeSettings(value: unknown): AiSettings {
   const record =
     typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
@@ -96,6 +185,7 @@ function normalizeSettings(value: unknown): AiSettings {
     rememberKey,
     guardrails: normalizeGuardrails(record['guardrails']),
     cache: normalizeCacheSettings(record['cache']),
+    assistant: normalizeAssistantPreferences(record['assistant']),
   };
 }
 
@@ -104,6 +194,11 @@ function defaultSettings(): AiSettings {
     ...DEFAULT_AI_SETTINGS,
     guardrails: { ...DEFAULT_AI_GUARDRAILS },
     cache: { ...DEFAULT_AI_CACHE_SETTINGS },
+    assistant: {
+      ...DEFAULT_AI_ASSISTANT_PREFERENCES,
+      favoriteActions: [...DEFAULT_AI_ASSISTANT_PREFERENCES.favoriteActions],
+      presets: [],
+    },
   };
 }
 

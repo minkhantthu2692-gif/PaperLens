@@ -111,8 +111,6 @@ export default function WorkspacePage() {
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const [aiContext, setAiContext] = useState<{
     text: string;
-    scopeLabel?: string;
-    applyMode: 'replace' | 'insert';
     selection: EditorSelectionContext | null;
   } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -257,39 +255,33 @@ export default function WorkspacePage() {
     [cleanupSource, t],
   );
 
-  const handleAiRequest = useCallback((selection: EditorSelectionContext) => {
-    setAiContext({ text: selection.text, applyMode: 'replace', selection });
+  const handleAiRequest = useCallback((selection: EditorSelectionContext | null) => {
+    // The assistant is a standalone text tool: a selection seeds the editable
+    // input, while no selection opens an empty box for typing or pasting.
+    setAiContext({ text: selection?.text ?? '', selection });
     setAiOpen(true);
   }, []);
 
-  const handleSourceAiText = useCallback((text: string, scopeLabel: string) => {
-    setAiContext({ text, scopeLabel, applyMode: 'insert', selection: null });
+  const handleSourceAiText = useCallback((text: string) => {
+    setAiContext({ text, selection: null });
     setAiOpen(true);
   }, []);
 
   const handleOcrAssistant = useCallback(
     (text: string) => {
-      handleSourceAiText(text, t('workspace.aiScopeOcr'));
+      handleSourceAiText(text);
     },
-    [handleSourceAiText, t],
+    [handleSourceAiText],
   );
 
   const handleApplyAi = useCallback(
-    (text: string) => {
+    (text: string, mode: 'insert' | 'append') => {
       const editor = editorRef.current;
-      if (!editor || !aiContext) {
+      if (!editor) {
         return;
       }
-      if (aiContext.selection) {
-        editor
-          .chain()
-          .focus()
-          .insertContentAt(
-            { from: aiContext.selection.from, to: aiContext.selection.to },
-            textToHtmlParagraphs(text),
-          )
-          .run();
-      } else {
+      const size = editor.state.doc.content.size;
+      if (mode === 'append') {
         const blocks = text
           .split(/\n\s*\n+/)
           .map((block) => block.replace(/\s*\n\s*/g, ' ').trim())
@@ -306,11 +298,25 @@ export default function WorkspacePage() {
           .focus('end')
           .insertContent(editor.isEmpty ? paragraphs : [{ type: 'paragraph' }, ...paragraphs])
           .run();
+      } else {
+        // Insert at the editor position captured when the dialog opened (or
+        // the current caret when no selection was used), never replacing text.
+        const position = Math.min(aiContext?.selection?.to ?? editor.state.selection.to, size);
+        editor.chain().focus().insertContentAt(position, textToHtmlParagraphs(text)).run();
       }
       setNotice(t('assistant.applied'));
     },
     [aiContext, t],
   );
+
+  const handleUndoAi = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+    editor.chain().focus().undo().run();
+    setNotice(t('assistant.reverted'));
+  }, [t]);
 
   const handleSaveStateChange = useCallback((state: SaveState) => {
     setSaveState(state);
@@ -802,11 +808,10 @@ export default function WorkspacePage() {
 
       <AiAssistantDialog
         open={aiOpen}
-        sourceText={aiContext?.text ?? ''}
-        {...(aiContext?.scopeLabel ? { scopeLabel: aiContext.scopeLabel } : {})}
-        applyMode={aiContext?.applyMode ?? 'replace'}
+        initialText={aiContext?.text ?? ''}
         onClose={() => setAiOpen(false)}
         onApply={handleApplyAi}
+        onUndo={handleUndoAi}
         onOpenSettings={() => {
           setAiOpen(false);
           navigate('/settings');

@@ -1,7 +1,7 @@
 import { getDatabase } from '@/services/storage/db';
 import { AI_PROMPT_VERSION } from './prompts';
 import { resolveProviderBaseUrl } from './providers';
-import type { AiCacheSettings, AiSettings, AiTaskId } from './types';
+import type { AiCacheSettings, AiSettings, AiTaskId, AiTaskOptions } from './types';
 
 export const AI_CACHE_KEY_VERSION = 1;
 
@@ -25,6 +25,7 @@ interface AiCacheKeyInput {
   targetLanguage?: string;
   sourceLanguage?: string;
   detectSourceLanguage?: boolean;
+  options?: AiTaskOptions;
 }
 
 function normalizeCacheText(text: string): string {
@@ -32,7 +33,8 @@ function normalizeCacheText(text: string): string {
 }
 
 export function buildAiCacheKey(input: AiCacheKeyInput): string {
-  const { settings, task, text, targetLanguage, sourceLanguage, detectSourceLanguage } = input;
+  const { settings, task, text, targetLanguage, sourceLanguage, detectSourceLanguage, options } =
+    input;
   return JSON.stringify({
     version: AI_CACHE_KEY_VERSION,
     promptVersion: AI_PROMPT_VERSION,
@@ -44,6 +46,12 @@ export function buildAiCacheKey(input: AiCacheKeyInput): string {
     targetLanguage: task === 'translate' ? (targetLanguage ?? '') : '',
     sourceLanguage: task === 'translate' ? (sourceLanguage ?? '') : '',
     detectSourceLanguage: task === 'translate' && detectSourceLanguage === true,
+    tone: options?.tone ?? '',
+    outputLength: options?.outputLength ?? '',
+    preserveFormatting: options?.preserveFormatting === true,
+    contextAwareness: options?.contextAwareness === true,
+    translationStyle: task === 'translate' ? (options?.translationStyle ?? '') : '',
+    customInstruction: task === 'custom' ? (options?.customInstruction?.trim() ?? '') : '',
     text: normalizeCacheText(text),
   });
 }

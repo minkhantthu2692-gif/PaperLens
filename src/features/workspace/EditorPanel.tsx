@@ -52,17 +52,10 @@ interface EditorPanelProps {
   fullWorkspace?: boolean;
   onEditorReady: (editor: Editor | null) => void;
   onSaveStateChange: (state: SaveState) => void;
-  onAiRequest: (selection: EditorSelectionContext) => void;
+  /** `null` means there is no editor selection, so the assistant opens the whole document. */
+  onAiRequest: (selection: EditorSelectionContext | null) => void;
   headerActions?: ReactNode;
   panelTitle?: ReactNode;
-}
-
-interface AiBubblePosition {
-  top: number;
-  left: number;
-  text: string;
-  from: number;
-  to: number;
 }
 
 function createSnapshot(editor: Editor): EditorSnapshot {
@@ -85,7 +78,6 @@ export function EditorPanel({
 }: EditorPanelProps) {
   const { t } = useTranslation();
   const [stats, setStats] = useState({ words: 0, characters: 0 });
-  const [aiBubble, setAiBubble] = useState<AiBubblePosition | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -160,51 +152,6 @@ export function EditorPanel({
   }, [editor, onEditorReady]);
 
   useEffect(() => {
-    if (!editor) {
-      setAiBubble(null);
-      return;
-    }
-
-    const update = () => {
-      const { from, to, empty } = editor.state.selection;
-      if (empty || !editor.isEditable) {
-        setAiBubble(null);
-        return;
-      }
-      const text = editor.state.doc.textBetween(from, to, '\n\n');
-      if (!text.trim()) {
-        setAiBubble(null);
-        return;
-      }
-      const start = editor.view.coordsAtPos(from);
-      const end = editor.view.coordsAtPos(to);
-      const top = Math.min(start.top, end.top);
-      const bottom = Math.max(start.bottom, end.bottom);
-      const preferredTop = top > 56 ? top - 44 : bottom + 8;
-      const preferredLeft = Math.min(start.left, end.left);
-      setAiBubble({
-        top: Math.max(8, preferredTop),
-        left: Math.max(8, Math.min(preferredLeft, window.innerWidth - 190)),
-        text,
-        from,
-        to,
-      });
-    };
-
-    editor.on('selectionUpdate', update);
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
-    update();
-
-    return () => {
-      editor.off('selectionUpdate', update);
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
-      setAiBubble(null);
-    };
-  }, [editor]);
-
-  useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!unsavedRef.current) {
         return;
@@ -263,6 +210,16 @@ export function EditorPanel({
   const removeLink = () => {
     editor.chain().focus().extendMarkRange('link').unsetLink().run();
     setLinkDialogOpen(false);
+  };
+
+  const openAiAssistant = () => {
+    const { from, to, empty } = editor.state.selection;
+    if (empty) {
+      onAiRequest(null);
+      return;
+    }
+    const text = editor.state.doc.textBetween(from, to, '\n\n');
+    onAiRequest(text.trim() ? { text, from, to } : null);
   };
 
   const openSearch = (showReplaceControls: boolean) => {
@@ -538,6 +495,19 @@ export function EditorPanel({
         >
           <Search size={16} aria-hidden="true" />
         </Button>
+
+        <span className={styles.divider} aria-hidden="true" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          onClick={openAiAssistant}
+          aria-label={t('editor.aiAssistant')}
+          title={t('editor.aiAssistant')}
+        >
+          <Sparkles size={16} aria-hidden="true" />
+        </Button>
       </div>
 
       <div className={styles.scroll} ref={scrollRef}>
@@ -608,25 +578,6 @@ export function EditorPanel({
           ) : null}
         </div>
       </Dialog>
-
-      {aiBubble ? (
-        <button
-          type="button"
-          className={styles.aiBubble}
-          style={{ top: aiBubble.top, left: aiBubble.left }}
-          aria-label={t('editor.aiHint')}
-          title={t('editor.aiHint')}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            const selection = { text: aiBubble.text, from: aiBubble.from, to: aiBubble.to };
-            setAiBubble(null);
-            onAiRequest(selection);
-          }}
-        >
-          <Sparkles size={14} aria-hidden="true" />
-          {t('editor.aiAction')}
-        </button>
-      ) : null}
     </section>
   );
 }

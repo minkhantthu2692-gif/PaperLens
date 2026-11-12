@@ -192,6 +192,7 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     targetLanguage,
     sourceLanguage,
     detectSourceLanguage,
+    options: taskOptions,
     image,
     signal,
   } = options;
@@ -238,6 +239,7 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
           ...(targetLanguage ? { targetLanguage } : {}),
           ...(sourceLanguage ? { sourceLanguage } : {}),
           ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
+          ...(taskOptions ? { options: taskOptions } : {}),
         })
       : null;
 
@@ -276,12 +278,22 @@ export async function requestAi(options: AiRequestOptions): Promise<AiResponse> 
     throw new AiError('busy');
   }
 
-  const prompt = image
-    ? buildImageAiPrompt(task as AiImageTaskId)
-    : buildAiPrompt(task as AiTaskId, inputText, targetLanguage, {
-        ...(sourceLanguage ? { sourceLanguage } : {}),
-        ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
-      });
+  if (task === 'custom' && !taskOptions?.customInstruction?.trim()) {
+    throw new AiError('bad-request');
+  }
+
+  let prompt;
+  try {
+    prompt = image
+      ? buildImageAiPrompt(task as AiImageTaskId)
+      : buildAiPrompt(task as AiTaskId, inputText, targetLanguage, {
+          ...(taskOptions ?? {}),
+          ...(sourceLanguage ? { sourceLanguage } : {}),
+          ...(detectSourceLanguage ? { detectSourceLanguage: true } : {}),
+        });
+  } catch {
+    throw new AiError('bad-request');
+  }
   const request = buildChatRequest({
     providerId: settings.providerId,
     baseUrl,

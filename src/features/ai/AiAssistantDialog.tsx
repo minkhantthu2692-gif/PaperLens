@@ -1,52 +1,64 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  ArrowDownToLine,
   Check,
+  CornerDownRight,
   Copy,
-  Plus,
-  Replace,
   RotateCcw,
   Sparkles,
   Square,
+  Undo2,
   Wand2,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import formStyles from '@/components/ui/Form.module.css';
 import { AiError, requestAi, type AiErrorCode } from '@/services/ai/client';
+import { saveAiHistory } from '@/services/ai/history';
 import { getActiveApiKey } from '@/services/ai/keys';
 import { loadAiSettings } from '@/services/ai/settings';
-import type { AiSettings, AiTaskId } from '@/services/ai/types';
-import { getAiAllowance, type AiUsageWarning } from '@/services/ai/usage';
+import type {
+  AiAssistantPreferences,
+  AiSettings,
+  AiTaskId,
+  AiTaskOptions,
+} from '@/services/ai/types';
+import { getAiAllowance, getAiUsageSummary, type AiUsageWarning } from '@/services/ai/usage';
+import {
+  AI_ACTIONS,
+  AI_ACTION_CATEGORIES,
+  AI_CATEGORY_LABEL_KEYS,
+  getAiAction,
+  resolveFavoriteActions,
+  type AiActionCategory,
+} from './actionCatalog';
 import styles from './AiAssistantDialog.module.css';
 
 type Status = 'idle' | 'running' | 'done' | 'cancelled';
 
-type ErrorState = AiErrorCode | 'not-configured';
+type ErrorState = AiErrorCode | 'not-configured' | 'custom-instruction';
+
+export type AiApplyMode = 'insert' | 'append';
 
 interface AiAssistantDialogProps {
   open: boolean;
-  sourceText: string;
-  scopeLabel?: string;
-  applyMode?: 'replace' | 'insert';
+  /** Text loaded into the editable input when the dialog opens. */
+  initialText: string;
   onClose: () => void;
-  onApply: (text: string) => void;
+  onApply: (text: string, mode: AiApplyMode) => void;
+  onUndo: () => void;
   onOpenSettings: () => void;
 }
-
-const TASKS = [
-  { id: 'cleanup', label: 'assistant.taskCleanup' },
-  { id: 'proofread', label: 'assistant.taskProofread' },
-  { id: 'rewrite', label: 'assistant.taskRewrite' },
-  { id: 'summarize', label: 'assistant.taskSummarize' },
-  { id: 'translate', label: 'assistant.taskTranslate' },
-] as const satisfies ReadonlyArray<{ id: AiTaskId; label: string }>;
 
 function errorMessageKey(code: ErrorState) {
   switch (code) {
     case 'not-configured':
       return 'assistant.notConfigured';
+    case 'custom-instruction':
+      return 'assistant.customInstructionRequired';
     case 'input-too-large':
       return 'assistant.inputTooLarge';
     case 'daily-limit':
@@ -86,20 +98,33 @@ function errorMessageKey(code: ErrorState) {
   }
 }
 
+function clonePreferences(preferences: AiAssistantPreferences): AiAssistantPreferences {
+  return {
+    ...preferences,
+    favoriteActions: [...preferences.favoriteActions],
+    presets: preferences.presets.map((preset) => ({ ...preset })),
+  };
+}
+
 export function AiAssistantDialog({
   open,
-  sourceText,
-  scopeLabel,
-  applyMode = 'replace',
+  initialText,
   onClose,
   onApply,
+  onUndo,
   onOpenSettings,
 }: AiAssistantDialogProps) {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<AiSettings>(loadAiSettings);
   const [apiKey, setApiKey] = useState('');
-  const [task, setTask] = useState<AiTaskId>('proofread');
-  const [targetLanguage, setTargetLanguage] = useState('English');
+  const [preferences, setPreferences] = useState<AiAssistantPreferences>(() =>
+    clonePreferences(loadAiSettings().assistant),
+  );
+  const [inputText, setInputText] = useState(initialText);
+  const [actionId, setActionId] = useState('proofread');
+  const [category, setCategory] = useState<AiActionCategory>('improve');
+  const [customInstruction, setCustomInstruction] = useState('');
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<ErrorState | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -107,8 +132,11 @@ export function AiAssistantDialog({
   const [warning, setWarning] = useState<AiUsageWarning | null>(null);
   const [warningConfirmed, setWarningConfirmed] = useState(false);
   const [copied, setCopied] = useState<'idle' | 'done' | 'error'>('idle');
+  const [applied, setApplied] = useState<AiApplyMode | null>(null);
+  const [usage, setUsage] = useState(getAiUsageSummary);
   const controllerRef = useRef<AbortController | null>(null);
   const copyTimerRef = useRef<number | undefined>(undefined);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -116,10 +144,17 @@ export function AiAssistantDialog({
       return;
     }
     const loadedSettings = loadAiSettings();
+    const loadedPreferences = clonePreferences(loadedSettings.assistant);
+    const initialAction =
+      resolveFavoriteActions(loadedPreferences.favoriteActions)[0] ?? getAiAction('proofread');
     setSettings(loadedSettings);
     setApiKey(getActiveApiKey(loadedSettings.providerId)?.key ?? '');
-    setTask('proofread');
-    setTargetLanguage('English');
+    setPreferences(loadedPreferences);
+    setInputText(initialText);
+    setActionId(initialAction?.id ?? 'proofread');
+    setCategory(initialAction?.category ?? 'improve');
+    setCustomInstruction('');
+    setActivePresetId(null);
     setStatus('idle');
     setError(null);
     setResult(null);
@@ -127,7 +162,9 @@ export function AiAssistantDialog({
     setWarning(null);
     setWarningConfirmed(false);
     setCopied('idle');
-  }, [open]);
+    setApplied(null);
+    setUsage(getAiUsageSummary());
+  }, [open, initialText]);
 
   useEffect(() => {
     return () => {
@@ -141,6 +178,14 @@ export function AiAssistantDialog({
     !!settings.model.trim() &&
     !(settings.providerId === 'custom' && !settings.customBaseUrl.trim());
 
+  const maxInputChars = settings.guardrails.maxInputChars;
+  const overLimitBy = Math.max(0, inputText.length - maxInputChars);
+  const inputEmpty = inputText.trim().length === 0;
+  const action = getAiAction(actionId) ?? getAiAction('proofread');
+  const task: AiTaskId = action?.task ?? 'proofread';
+  const favorites = resolveFavoriteActions(preferences.favoriteActions);
+  const categoryActions = AI_ACTIONS.filter((entry) => entry.category === category);
+
   const resetResult = () => {
     setResult(null);
     setStatus('idle');
@@ -149,6 +194,40 @@ export function AiAssistantDialog({
     setWarning(null);
     setWarningConfirmed(false);
     setCopied('idle');
+    setApplied(null);
+  };
+
+  const selectAction = (nextId: string) => {
+    const nextAction = getAiAction(nextId);
+    if (!nextAction) {
+      return;
+    }
+    setActionId(nextId);
+    setCategory(nextAction.category);
+    if (nextId !== 'custom') {
+      setActivePresetId(null);
+    }
+    resetResult();
+  };
+
+  const updatePreference = <Key extends keyof AiAssistantPreferences>(
+    key: Key,
+    value: AiAssistantPreferences[Key],
+  ) => {
+    setPreferences((current) => ({ ...current, [key]: value }));
+    resetResult();
+  };
+
+  const applyPreset = (presetId: string) => {
+    const preset = preferences.presets.find((entry) => entry.id === presetId);
+    if (!preset) {
+      return;
+    }
+    setActionId('custom');
+    setCategory('custom');
+    setActivePresetId(preset.id);
+    setCustomInstruction(preset.instruction);
+    resetResult();
   };
 
   const handleClose = () => {
@@ -160,6 +239,20 @@ export function AiAssistantDialog({
     controllerRef.current?.abort();
   };
 
+  const clearInput = () => {
+    setInputText('');
+    resetResult();
+    inputRef.current?.focus();
+  };
+
+  const buildOptions = (): AiTaskOptions => ({
+    tone: preferences.tone,
+    outputLength: preferences.outputLength,
+    preserveFormatting: preferences.preserveFormatting,
+    contextAwareness: preferences.contextAwareness,
+    ...(task === 'custom' ? { customInstruction: customInstruction.trim() } : {}),
+  });
+
   const runRequest = async () => {
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -169,14 +262,15 @@ export function AiAssistantDialog({
     setCached(false);
     setWarning(null);
     setCopied('idle');
+    setApplied(null);
 
     try {
       const response = await requestAi({
         settings,
         apiKey: apiKey.trim(),
         task,
-        text: sourceText,
-        ...(task === 'translate' ? { targetLanguage } : {}),
+        text: inputText,
+        options: buildOptions(),
         signal: controller.signal,
       });
       if (controller.signal.aborted) {
@@ -185,6 +279,18 @@ export function AiAssistantDialog({
       setResult(response.text);
       setCached(response.cached);
       setStatus('done');
+      setUsage(getAiUsageSummary());
+
+      if (settings.assistant.historyEnabled) {
+        void saveAiHistory({
+          actionId,
+          task,
+          providerId: settings.providerId,
+          model: settings.model,
+          sourceText: inputText,
+          resultText: response.text,
+        }).catch(() => undefined);
+      }
     } catch (requestError) {
       if (requestError instanceof AiError && requestError.code === 'cancelled') {
         setStatus('cancelled');
@@ -205,12 +311,16 @@ export function AiAssistantDialog({
       setError('not-configured');
       return;
     }
-    if (sourceText.trim().length === 0) {
+    if (inputEmpty) {
       setError('empty-input');
       return;
     }
-    if (sourceText.length > settings.guardrails.maxInputChars) {
+    if (overLimitBy > 0) {
       setError('input-too-large');
+      return;
+    }
+    if (task === 'custom' && !customInstruction.trim()) {
+      setError('custom-instruction');
       return;
     }
     const allowance = getAiAllowance(settings.guardrails);
@@ -231,12 +341,9 @@ export function AiAssistantDialog({
     handleGenerate();
   };
 
-  const handleCopy = async () => {
-    if (!result) {
-      return;
-    }
+  const handleCopy = async (value: string) => {
     try {
-      await navigator.clipboard.writeText(result);
+      await navigator.clipboard.writeText(value);
       setCopied('done');
       window.clearTimeout(copyTimerRef.current);
       copyTimerRef.current = window.setTimeout(() => setCopied('idle'), 2200);
@@ -245,15 +352,21 @@ export function AiAssistantDialog({
     }
   };
 
-  const handleApply = () => {
+  const handleApply = (mode: AiApplyMode) => {
     if (!result) {
       return;
     }
-    onApply(result);
-    handleClose();
+    onApply(result, mode);
+    setApplied(mode);
+  };
+
+  const handleUndo = () => {
+    onUndo();
+    setApplied(null);
   };
 
   const errorKey = error ? errorMessageKey(error) : null;
+  const generateDisabled = status === 'running' || inputEmpty || overLimitBy > 0;
 
   const footer = (
     <div className={styles.footer}>
@@ -264,7 +377,7 @@ export function AiAssistantDialog({
         </Button>
       ) : result ? (
         <>
-          <Button variant="secondary" onClick={() => void handleCopy()}>
+          <Button variant="ghost" onClick={() => void handleCopy(result)}>
             {copied === 'done' ? (
               <Check size={15} aria-hidden="true" />
             ) : (
@@ -283,17 +396,24 @@ export function AiAssistantDialog({
         <Button variant="primary" onClick={onOpenSettings}>
           {t('assistant.openSettings')}
         </Button>
-      ) : result ? (
-        <Button variant="primary" onClick={handleApply}>
-          {applyMode === 'insert' ? (
-            <Plus size={15} aria-hidden="true" />
-          ) : (
-            <Replace size={15} aria-hidden="true" />
-          )}
-          {applyMode === 'insert' ? t('assistant.insert') : t('assistant.replace')}
+      ) : applied ? (
+        <Button variant="secondary" onClick={handleUndo}>
+          <Undo2 size={15} aria-hidden="true" />
+          {t('assistant.undoApply')}
         </Button>
+      ) : result ? (
+        <>
+          <Button variant="secondary" onClick={() => handleApply('insert')}>
+            <CornerDownRight size={15} aria-hidden="true" />
+            {t('assistant.insertIntoEditor')}
+          </Button>
+          <Button variant="primary" onClick={() => handleApply('append')}>
+            <ArrowDownToLine size={15} aria-hidden="true" />
+            {t('assistant.appendBelow')}
+          </Button>
+        </>
       ) : (
-        <Button variant="primary" onClick={handleGenerate} disabled={status === 'running'}>
+        <Button variant="primary" onClick={handleGenerate} disabled={generateDisabled}>
           <Sparkles size={15} aria-hidden="true" />
           {status === 'running'
             ? t('assistant.generating')
@@ -303,7 +423,7 @@ export function AiAssistantDialog({
         </Button>
       )}
 
-      <Button variant="ghost" onClick={handleClose}>
+      <Button variant={applied ? 'primary' : 'ghost'} onClick={handleClose}>
         {t('common.close')}
       </Button>
     </div>
@@ -315,60 +435,251 @@ export function AiAssistantDialog({
       title={t('assistant.title')}
       description={t('assistant.description')}
       onClose={handleClose}
+      className={styles.dialog}
       footer={footer}
     >
       <div className={styles.body}>
-        <p className={styles.scope}>
-          {scopeLabel
-            ? t('assistant.scopeWithLabel', { label: scopeLabel, count: sourceText.length })
-            : t('assistant.scope', { count: sourceText.length })}
-        </p>
-
-        <div className={styles.controls}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="ai-task">
-              {t('assistant.task')}
+        <div className={styles.inputBlock}>
+          <div className={styles.inputHeader}>
+            <label className={styles.label} htmlFor="ai-input">
+              {t('assistant.inputLabel')}
             </label>
-            <select
-              id="ai-task"
-              className={formStyles.select}
-              value={task}
+            <div className={styles.inputMeta}>
+              <span
+                className={overLimitBy > 0 ? styles.overLimit : styles.counter}
+                role="status"
+                aria-live="polite"
+              >
+                {t('assistant.characterCount', {
+                  count: inputText.length,
+                  max: maxInputChars,
+                })}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                iconOnly
+                onClick={clearInput}
+                disabled={inputEmpty || status === 'running'}
+                aria-label={t('assistant.clearInput')}
+                title={t('assistant.clearInput')}
+              >
+                <X size={16} aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
+          <textarea
+            ref={inputRef}
+            id="ai-input"
+            className={styles.textarea}
+            rows={8}
+            value={inputText}
+            disabled={status === 'running'}
+            placeholder={t('assistant.inputPlaceholder')}
+            aria-describedby="ai-input-help"
+            aria-invalid={overLimitBy > 0}
+            onChange={(event) => {
+              setInputText(event.target.value);
+              resetResult();
+            }}
+          />
+          <p
+            id="ai-input-help"
+            className={overLimitBy > 0 ? styles.errorHint : styles.hint}
+            role={overLimitBy > 0 ? 'alert' : undefined}
+          >
+            {overLimitBy > 0
+              ? t('assistant.inputOverLimit', { count: overLimitBy })
+              : t('assistant.inputHint')}
+          </p>
+          <p className={styles.hint}>
+            {t('assistant.usageInfo', {
+              today: usage.todayRequests,
+              month: usage.monthRequests,
+            })}
+          </p>
+        </div>
+
+        {favorites.length > 0 ? (
+          <div className={styles.section}>
+            <span className={styles.sectionTitle}>{t('assistant.favorites')}</span>
+            <div className={styles.chips}>
+              {favorites.map((favorite) => {
+                const Icon = favorite.icon;
+                return (
+                  <button
+                    key={favorite.id}
+                    type="button"
+                    className={`${styles.chip} ${actionId === favorite.id ? styles.chipActive : ''}`}
+                    aria-pressed={actionId === favorite.id}
+                    disabled={status === 'running'}
+                    onClick={() => selectAction(favorite.id)}
+                  >
+                    <Icon size={15} aria-hidden="true" />
+                    {t(favorite.labelKey)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div className={styles.categories} role="tablist" aria-label={t('assistant.categories')}>
+          {AI_ACTION_CATEGORIES.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={category === id}
+              className={category === id ? styles.activeTab : styles.tab}
               disabled={status === 'running'}
-              onChange={(event) => {
-                const next = event.target.value as AiTaskId;
-                setTask(next);
-                resetResult();
-              }}
+              onClick={() => setCategory(id)}
             >
-              {TASKS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {t(option.label)}
-                </option>
-              ))}
-            </select>
+              {t(AI_CATEGORY_LABEL_KEYS[id])}
+            </button>
+          ))}
+        </div>
+
+        <div
+          className={styles.section}
+          role="tabpanel"
+          aria-label={t(AI_CATEGORY_LABEL_KEYS[category])}
+        >
+          <span className={styles.sectionTitle}>{t('assistant.actionPick')}</span>
+          <div className={styles.actions}>
+            {categoryActions.map((entry) => {
+              const Icon = entry.icon;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={`${styles.action} ${actionId === entry.id ? styles.actionActive : ''}`}
+                  aria-pressed={actionId === entry.id}
+                  disabled={status === 'running'}
+                  onClick={() => selectAction(entry.id)}
+                >
+                  <Icon size={17} aria-hidden="true" />
+                  <span>{t(entry.labelKey)}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {task === 'translate' ? (
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="ai-target-language">
-                {t('assistant.targetLanguage')}
-              </label>
-              <select
-                id="ai-target-language"
-                className={formStyles.select}
-                value={targetLanguage}
-                disabled={status === 'running'}
-                onChange={(event) => {
-                  setTargetLanguage(event.target.value);
-                  resetResult();
-                }}
-              >
-                <option value="English">{t('assistant.languageEnglish')}</option>
-                <option value="Burmese">{t('assistant.languageBurmese')}</option>
-              </select>
-            </div>
+          {category === 'custom' ? (
+            <>
+              <div className={styles.subsection}>
+                <span className={styles.label}>{t('assistant.presets')}</span>
+                {preferences.presets.length === 0 ? (
+                  <p className={styles.hint}>{t('assistant.noPresets')}</p>
+                ) : (
+                  <div className={styles.chips}>
+                    {preferences.presets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className={`${styles.chip} ${activePresetId === preset.id ? styles.chipActive : ''}`}
+                        aria-pressed={activePresetId === preset.id}
+                        disabled={status === 'running'}
+                        onClick={() => applyPreset(preset.id)}
+                      >
+                        {preset.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className={styles.subsection}>
+                <label className={styles.label} htmlFor="ai-custom-instruction">
+                  {t('assistant.customInstruction')}
+                </label>
+                <textarea
+                  id="ai-custom-instruction"
+                  className={styles.customTextarea}
+                  rows={3}
+                  value={customInstruction}
+                  disabled={status === 'running'}
+                  placeholder={t('assistant.customInstructionPlaceholder')}
+                  onChange={(event) => {
+                    setCustomInstruction(event.target.value);
+                    setActivePresetId(null);
+                    if (actionId !== 'custom') {
+                      setActionId('custom');
+                    }
+                    resetResult();
+                  }}
+                />
+              </div>
+            </>
           ) : null}
         </div>
+
+        <details className={styles.advanced}>
+          <summary className={styles.summary}>{t('assistant.advanced')}</summary>
+          <p className={styles.hint}>{t('assistant.advancedHint')}</p>
+          <div className={styles.advancedGrid}>
+            <label className={styles.field} htmlFor="ai-tone">
+              <span className={styles.label}>{t('assistant.tone')}</span>
+              <select
+                id="ai-tone"
+                className={formStyles.select}
+                value={preferences.tone}
+                disabled={status === 'running'}
+                onChange={(event) =>
+                  updatePreference('tone', event.target.value as AiAssistantPreferences['tone'])
+                }
+              >
+                <option value="academic">{t('assistant.toneAcademic')}</option>
+                <option value="professional">{t('assistant.toneProfessional')}</option>
+                <option value="casual">{t('assistant.toneCasual')}</option>
+              </select>
+            </label>
+            <label className={styles.field} htmlFor="ai-output-length">
+              <span className={styles.label}>{t('assistant.outputLength')}</span>
+              <select
+                id="ai-output-length"
+                className={formStyles.select}
+                value={preferences.outputLength}
+                disabled={status === 'running'}
+                onChange={(event) =>
+                  updatePreference(
+                    'outputLength',
+                    event.target.value as AiAssistantPreferences['outputLength'],
+                  )
+                }
+              >
+                <option value="short">{t('assistant.lengthShort')}</option>
+                <option value="balanced">{t('assistant.lengthBalanced')}</option>
+                <option value="detailed">{t('assistant.lengthDetailed')}</option>
+              </select>
+            </label>
+          </div>
+          <div className={styles.toggles}>
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={preferences.preserveFormatting}
+                disabled={status === 'running'}
+                onChange={(event) => updatePreference('preserveFormatting', event.target.checked)}
+              />
+              <span>
+                <span className={styles.toggleLabel}>{t('assistant.preserveFormatting')}</span>
+                <span className={styles.hint}>{t('assistant.preserveFormattingHint')}</span>
+              </span>
+            </label>
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={preferences.contextAwareness}
+                disabled={status === 'running'}
+                onChange={(event) => updatePreference('contextAwareness', event.target.checked)}
+              />
+              <span>
+                <span className={styles.toggleLabel}>{t('assistant.contextAwareness')}</span>
+                <span className={styles.hint}>{t('assistant.contextAwarenessHint')}</span>
+              </span>
+            </label>
+          </div>
+        </details>
 
         {!configured ? (
           <div className={formStyles.alert} role="status">
@@ -407,7 +718,7 @@ export function AiAssistantDialog({
         ) : null}
 
         {result ? (
-          <div className={styles.result}>
+          <section className={styles.result} aria-label={t('assistant.comparison')}>
             <div className={styles.resultHeader}>
               <span className={styles.resultTitle}>{t('assistant.result')}</span>
               <span className={styles.resultMeta}>
@@ -415,9 +726,29 @@ export function AiAssistantDialog({
                 {t('assistant.resultMeta', { count: result.length })}
               </span>
             </div>
-            <pre className={styles.resultText}>{result}</pre>
+            <div className={styles.comparison}>
+              <div className={styles.comparePane}>
+                <span className={styles.compareLabel}>{t('assistant.original')}</span>
+                <pre className={styles.compareText}>{inputText}</pre>
+              </div>
+              <div className={`${styles.comparePane} ${styles.comparePaneResult}`}>
+                <span className={styles.compareLabel}>{t('assistant.generated')}</span>
+                <pre className={styles.compareText}>{result}</pre>
+              </div>
+            </div>
+            {applied ? (
+              <p className={styles.applied} role="status">
+                <Check size={15} aria-hidden="true" />
+                {applied === 'append'
+                  ? t('assistant.appliedAppend')
+                  : t('assistant.appliedInsert')}{' '}
+                {t('assistant.appliedUndoHint')}
+              </p>
+            ) : (
+              <p className={styles.hint}>{t('assistant.applyHint')}</p>
+            )}
             {copied === 'error' ? <p className={styles.hint}>{t('assistant.copyFailed')}</p> : null}
-          </div>
+          </section>
         ) : null}
 
         <p className={styles.privacy}>{t('assistant.privacy')}</p>

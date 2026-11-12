@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Button } from '@/components/ui/Button';
 import type { Editor } from '@tiptap/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import i18n from '@/i18n';
 import type { EditorContent } from '@/domain/document';
@@ -105,6 +105,58 @@ describe('Editor paragraph alignment', () => {
       'aria-pressed',
       'true',
     );
+  });
+
+  it('opens the AI assistant from the toolbar with the current selection', async () => {
+    const user = userEvent.setup();
+    const onAiRequest = vi.fn();
+    let editor: Editor | null = null;
+    render(
+      <EditorPanel
+        documentId="ai-test"
+        initialContent={initialContent}
+        onEditorReady={(readyEditor) => {
+          editor = readyEditor;
+        }}
+        onSaveStateChange={() => undefined}
+        onAiRequest={onAiRequest}
+      />,
+    );
+
+    await waitFor(() => expect(editor).not.toBeNull());
+    act(() => {
+      editor?.commands.setTextSelection({ from: 1, to: 6 });
+    });
+
+    expect(screen.queryByRole('button', { name: 'AI actions for the selected text' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'AI assistant' }));
+
+    expect(onAiRequest).toHaveBeenCalledWith({ text: 'First', from: 1, to: 6 });
+  });
+
+  it('passes an empty selection so the assistant can use the whole document', async () => {
+    const user = userEvent.setup();
+    const onAiRequest = vi.fn();
+    let editor: Editor | null = null;
+    render(
+      <EditorPanel
+        documentId="ai-test"
+        initialContent={initialContent}
+        onEditorReady={(readyEditor) => {
+          editor = readyEditor;
+        }}
+        onSaveStateChange={() => undefined}
+        onAiRequest={onAiRequest}
+      />,
+    );
+
+    await waitFor(() => expect(editor).not.toBeNull());
+    act(() => {
+      editor?.commands.setTextSelection(3);
+    });
+    await user.click(screen.getByRole('button', { name: 'AI assistant' }));
+
+    expect(onAiRequest).toHaveBeenCalledWith(null);
   });
 
   it('restores existing heading alignment from saved editor content', () => {
