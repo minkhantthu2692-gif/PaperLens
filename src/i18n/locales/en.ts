@@ -19,7 +19,7 @@ export const en = {
     loading: 'Loading…',
     dismiss: 'Dismiss',
     handTool: 'Hand tool',
-    handToolHint: 'Drag the image to pan. Arrow keys pan too while this tool is active.',
+    handToolHint: 'Drag the source to pan. Arrow keys pan too while this tool is active.',
   },
   nav: {
     documents: 'Documents',
@@ -95,6 +95,7 @@ export const en = {
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
     fitWidth: 'Fit width',
+    fitToView: 'Fit to view',
     actualSize: 'Actual size',
     previousPage: 'Previous page',
     nextPage: 'Next page',

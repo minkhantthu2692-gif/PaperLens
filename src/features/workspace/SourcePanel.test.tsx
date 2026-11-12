@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
@@ -83,7 +83,7 @@ describe('SourcePanel image viewer', () => {
     const { container } = renderPanel();
     const scroll = container.querySelector('[class*="scroll"]') as HTMLElement;
 
-    expect(screen.getByText('100%')).toBeInTheDocument();
+    expect(screen.getAllByText('100%').length).toBeGreaterThan(0);
     expect(screen.queryByRole('group', { name: 'Hand tool' })).toBeNull();
 
     fireEvent.pointerDown(scroll, { button: 0, pointerId: 1, clientX: 100, clientY: 200 });
@@ -96,6 +96,156 @@ describe('SourcePanel image viewer', () => {
 
     fireEvent.pointerUp(scroll, { pointerId: 1 });
     fireEvent.pointerUp(scroll, { pointerId: 2 });
+  });
+
+  it('fits the whole image into the viewer by default and re-fits on resize', async () => {
+    const user = userEvent.setup();
+    const { container } = renderPanel();
+    const scroll = container.querySelector('[class*="scroll"]') as HTMLElement;
+    const image = screen.getByAltText('scan.png') as HTMLImageElement;
+
+    Object.defineProperty(scroll, 'clientWidth', { configurable: true, value: 1040 });
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 800 });
+    Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 2000 });
+    Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 3000 });
+    fireEvent.load(image);
+    fireEvent(window, new Event('resize'));
+
+    const computed = window.getComputedStyle(scroll);
+    const paddingX =
+      (Number.parseFloat(computed.paddingLeft) || 0) +
+      (Number.parseFloat(computed.paddingRight) || 0);
+    const paddingY =
+      (Number.parseFloat(computed.paddingTop) || 0) +
+      (Number.parseFloat(computed.paddingBottom) || 0);
+    // The viewer keeps a spare pixel so rounding cannot create a scrollbar.
+    const availableWidth = 1040 - paddingX - 1;
+    const availableHeight = 800 - paddingY - 1;
+    const fitScale = Math.min(availableWidth / 2000, availableHeight / 3000, 1);
+
+    expect(await screen.findByText(`${Math.round(fitScale * 100)}%`)).toBeInTheDocument();
+    expect(Number.parseFloat(image.style.width)).toBeCloseTo(2000 * fitScale, 2);
+    expect(Number.parseFloat(image.style.height)).toBeCloseTo(3000 * fitScale, 2);
+    expect(Number.parseFloat(image.style.width)).toBeLessThanOrEqual(availableWidth + 0.5);
+    expect(Number.parseFloat(image.style.height)).toBeLessThanOrEqual(availableHeight + 0.5);
+
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 400 });
+    fireEvent(window, new Event('resize'));
+    const resizedScale = Math.min(availableWidth / 2000, (400 - paddingY - 1) / 3000, 1);
+    expect(await screen.findByText(`${Math.round(resizedScale * 100)}%`)).toBeInTheDocument();
+    expect(Number.parseFloat(image.style.height)).toBeCloseTo(3000 * resizedScale, 2);
+
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(Number.parseFloat(image.style.width)).toBeGreaterThan(2000 * resizedScale);
+
+    await user.click(screen.getByRole('button', { name: 'Actual size' }));
+    expect(Number.parseFloat(image.style.width)).toBeCloseTo(2000, 2);
+
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 900 });
+    fireEvent(window, new Event('resize'));
+    // Manual zoom is preserved when the viewer resizes.
+    expect(Number.parseFloat(image.style.width)).toBeCloseTo(2000, 2);
+
+    const tallScale = Math.min(availableWidth / 2000, (900 - paddingY - 1) / 3000, 1);
+    await user.click(screen.getByRole('button', { name: 'Fit to view' }));
+    expect(Number.parseFloat(image.style.width)).toBeCloseTo(2000 * tallScale, 2);
+  });
+
+  it('fits a landscape image proportionally without imposing a fixed aspect ratio', async () => {
+    const { container } = renderPanel();
+    const scroll = container.querySelector('[class*="scroll"]') as HTMLElement;
+    const image = screen.getByAltText('scan.png') as HTMLImageElement;
+
+    Object.defineProperty(scroll, 'clientWidth', { configurable: true, value: 1040 });
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 800 });
+    Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 3000 });
+    Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 1000 });
+    fireEvent.load(image);
+    fireEvent(window, new Event('resize'));
+
+    const computed = window.getComputedStyle(scroll);
+    const availableWidth =
+      1040 -
+      (Number.parseFloat(computed.paddingLeft) || 0) -
+      (Number.parseFloat(computed.paddingRight) || 0) -
+      1;
+    const availableHeight =
+      800 -
+      (Number.parseFloat(computed.paddingTop) || 0) -
+      (Number.parseFloat(computed.paddingBottom) || 0) -
+      1;
+    const fitScale = Math.min(availableWidth / 3000, availableHeight / 1000, 1);
+
+    expect(await screen.findByText(`${Math.round(fitScale * 100)}%`)).toBeInTheDocument();
+    expect(Number.parseFloat(image.style.width)).toBeCloseTo(3000 * fitScale, 2);
+    expect(Number.parseFloat(image.style.height)).toBeCloseTo(1000 * fitScale, 2);
+    expect(
+      Number.parseFloat(image.style.width) / Number.parseFloat(image.style.height),
+    ).toBeCloseTo(3, 2);
+  });
+
+  it('uses Ctrl+wheel to zoom around the pointer without capturing normal scrolling', async () => {
+    const { container } = renderPanel();
+    const scroll = container.querySelector('[class*="scroll"]') as HTMLElement;
+    const stage = container.querySelector('[class*="imageStage"]') as HTMLElement;
+    const image = screen.getByAltText('scan.png') as HTMLImageElement;
+
+    Object.defineProperty(scroll, 'clientWidth', { configurable: true, value: 800 });
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 600 });
+    Object.defineProperty(scroll, 'scrollLeft', { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(scroll, 'scrollTop', { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 400 });
+    Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 300 });
+    fireEvent.load(image);
+    fireEvent(window, new Event('resize'));
+    vi.spyOn(stage, 'getBoundingClientRect').mockImplementation(
+      () =>
+        new DOMRect(
+          100 - scroll.scrollLeft,
+          80 - scroll.scrollTop,
+          Number.parseFloat(image.style.width),
+          Number.parseFloat(image.style.height),
+        ),
+    );
+
+    const normalWheel = new WheelEvent('wheel', { deltaY: -100, cancelable: true });
+    fireEvent(scroll, normalWheel);
+    expect(normalWheel.defaultPrevented).toBe(false);
+    expect(screen.getByText('100%')).toBeInTheDocument();
+
+    const outsideWheel = new WheelEvent('wheel', {
+      deltaY: -100,
+      ctrlKey: true,
+      cancelable: true,
+    });
+    fireEvent(window, outsideWheel);
+    expect(outsideWheel.defaultPrevented).toBe(false);
+
+    const zoomInWheel = new WheelEvent('wheel', {
+      deltaY: -100,
+      ctrlKey: true,
+      clientX: 150,
+      clientY: 120,
+      cancelable: true,
+    });
+    fireEvent(scroll, zoomInWheel);
+    expect(zoomInWheel.defaultPrevented).toBe(true);
+    expect(await screen.findByText('116%')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(scroll.scrollLeft).toBeGreaterThan(0);
+      expect(scroll.scrollTop).toBeGreaterThan(0);
+    });
+
+    const zoomOutWheel = new WheelEvent('wheel', {
+      deltaY: 100,
+      ctrlKey: true,
+      clientX: 150,
+      clientY: 120,
+      cancelable: true,
+    });
+    fireEvent(scroll, zoomOutWheel);
+    expect(zoomOutWheel.defaultPrevented).toBe(true);
+    expect(await screen.findByText('100%')).toBeInTheDocument();
   });
 
   it('keeps the hand tool and region selection mutually exclusive', async () => {

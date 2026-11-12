@@ -63,8 +63,63 @@ const MIN_SCALE = 0.3;
 const MAX_SCALE = 3;
 const SCALE_STEP = 0.2;
 
-function clampScale(value: number): number {
-  return Math.min(Math.max(value, MIN_SCALE), MAX_SCALE);
+function cssPixels(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function measureContentSize(element: HTMLElement) {
+  const computed = window.getComputedStyle(element);
+  return {
+    width: Math.max(
+      0,
+      element.clientWidth - cssPixels(computed.paddingLeft) - cssPixels(computed.paddingRight) - 1,
+    ),
+    height: Math.max(
+      0,
+      element.clientHeight - cssPixels(computed.paddingTop) - cssPixels(computed.paddingBottom) - 1,
+    ),
+  };
+}
+
+function calculateFitScale(
+  contentWidth: number,
+  contentHeight: number,
+  availableWidth: number,
+  availableHeight: number,
+): number {
+  if (contentWidth <= 0 || contentHeight <= 0 || availableWidth <= 0 || availableHeight <= 0) {
+    return 1;
+  }
+  return Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 1);
+}
+
+interface ZoomAnchor {
+  x: number;
+  y: number;
+  clientX: number;
+  clientY: number;
+}
+
+function captureZoomAnchor(content: HTMLElement, event: WheelEvent): ZoomAnchor {
+  const bounds = content.getBoundingClientRect();
+  return {
+    x: (event.clientX - bounds.left) / Math.max(bounds.width, 1),
+    y: (event.clientY - bounds.top) / Math.max(bounds.height, 1),
+    clientX: event.clientX,
+    clientY: event.clientY,
+  };
+}
+
+function restoreZoomAnchor(container: HTMLElement, content: HTMLElement, anchor: ZoomAnchor): void {
+  const bounds = content.getBoundingClientRect();
+  container.scrollLeft += bounds.left + anchor.x * bounds.width - anchor.clientX;
+  container.scrollTop += bounds.top + anchor.y * bounds.height - anchor.clientY;
+}
+
+function wheelZoomFactor(event: WheelEvent, viewportHeight: number): number {
+  const deltaUnit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewportHeight : 1;
+  return Math.exp(-event.deltaY * deltaUnit * 0.0015);
 }
 
 function cropToCanvas(
@@ -284,17 +339,23 @@ function PdfSource({
   const [pdf, setPdf] = useState<PdfDocument | null>(null);
   const [numPages, setNumPages] = useState(initialPageCount ?? 0);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.2);
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(scale);
+  const [fitMode, setFitMode] = useState(true);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [spans, setSpans] = useState<TextSpan[]>([]);
   const [pageText, setPageText] = useState('');
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [rendering, setRendering] = useState(true);
   const [error, setError] = useState(false);
-  const [mode, setMode] = useState<'text' | 'region'>('text');
+  const [mode, setMode] = useState<'text' | 'region' | 'pan'>('text');
   const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const pdfStageRef = useRef<HTMLDivElement>(null);
+  const wheelAnchorRef = useRef<ZoomAnchor | null>(null);
+  const gestures = useImageGestures({ pan: mode === 'pan', label: t('common.handTool') });
+  const scrollRef = gestures.containerRef;
   const selection = useRegionSelection(mode === 'region');
   const clearSelection = selection.clear;
 
@@ -332,13 +393,41 @@ function PdfSource({
   }, [asset, onPageCount]);
 
   useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) {
+      return;
+    }
+
+    const measure = () => {
+      const size = measureContentSize(element);
+      setViewport((current) =>
+        current.width === size.width && current.height === size.height ? current : size,
+      );
+    };
+
+    measure();
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver === 'function') {
+      observer = new ResizeObserver(measure);
+      observer.observe(element);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [scrollRef]);
+
+  useEffect(() => {
     if (!pdf || !pdfjs) {
       return;
     }
     let cancelled = false;
+    let cancelRender: (() => void) | null = null;
     void (async () => {
       try {
         setRendering(true);
+        setError(false);
         const page = await pdf.getPage(pageNumber);
         const viewport = page.getViewport({ scale });
         const canvas = canvasRef.current;
@@ -356,7 +445,10 @@ function PdfSource({
         }
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
         context.clearRect(0, 0, viewport.width, viewport.height);
-        await page.render({ canvasContext: context, viewport }).promise;
+        const renderTask = page.render({ canvasContext: context, viewport });
+        cancelRender = () => renderTask.cancel();
+        await renderTask.promise;
+        cancelRender = null;
         const textContent = await page.getTextContent();
         if (cancelled) {
           return;
@@ -380,6 +472,7 @@ function PdfSource({
         clearSelection();
       } catch {
         if (!cancelled) {
+          wheelAnchorRef.current = null;
           setError(true);
         }
       } finally {
@@ -391,8 +484,41 @@ function PdfSource({
 
     return () => {
       cancelled = true;
+      cancelRender?.();
     };
   }, [pdf, pdfjs, pageNumber, scale, clearSelection]);
+
+  useEffect(() => {
+    if (!fitMode || !pdf || !viewport.width || !viewport.height) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const page = await pdf.getPage(pageNumber);
+        if (cancelled) {
+          return;
+        }
+        const baseViewport = page.getViewport({ scale: 1 });
+        if (baseViewport.width > 0 && baseViewport.height > 0) {
+          const nextScale = calculateFitScale(
+            baseViewport.width,
+            baseViewport.height,
+            viewport.width,
+            viewport.height,
+          );
+          scaleRef.current = nextScale;
+          setScale(nextScale);
+        }
+      } catch {
+        // Keep the current scale if the page cannot be measured.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fitMode, pdf, pageNumber, viewport]);
 
   useEffect(() => {
     if (!status) {
@@ -402,21 +528,64 @@ function PdfSource({
     return () => window.clearTimeout(timer);
   }, [status]);
 
-  const fitWidth = useCallback(async () => {
-    if (!pdf) {
+  const updateScale = useCallback((value: number, anchor?: ZoomAnchor) => {
+    const current = scaleRef.current;
+    const next = Math.min(MAX_SCALE, Math.max(Math.min(MIN_SCALE, current), value));
+    if (next === current) {
+      wheelAnchorRef.current = null;
       return;
     }
-    try {
-      const page = await pdf.getPage(pageNumber);
-      const baseWidth = page.getViewport({ scale: 1 }).width;
-      const available = (scrollRef.current?.clientWidth ?? 640) - 48;
-      if (baseWidth > 0) {
-        setScale(clampScale(available / baseWidth));
-      }
-    } catch {
-      // Keep the current scale.
+    wheelAnchorRef.current = anchor ?? null;
+    scaleRef.current = next;
+    setScale(next);
+  }, []);
+
+  const zoomBy = useCallback(
+    (amount: number) => {
+      setFitMode(false);
+      updateScale(scaleRef.current + amount);
+    },
+    [updateScale],
+  );
+
+  useEffect(() => {
+    const anchor = wheelAnchorRef.current;
+    if (!anchor) {
+      return;
     }
-  }, [pdf, pageNumber]);
+    const frame = window.requestAnimationFrame(() => {
+      const container = scrollRef.current;
+      const content = pdfStageRef.current;
+      if (container && content) {
+        restoreZoomAnchor(container, content, anchor);
+      }
+      wheelAnchorRef.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pageSize, scrollRef]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey || event.deltaY === 0) {
+        return;
+      }
+      event.preventDefault();
+      const content = pdfStageRef.current;
+      const anchor = content ? captureZoomAnchor(content, event) : undefined;
+      setFitMode(false);
+      updateScale(scaleRef.current * wheelZoomFactor(event, container.clientHeight), anchor);
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [scrollRef, updateScale]);
+
+  useEffect(() => {
+    wheelAnchorRef.current = null;
+  }, [pageNumber]);
 
   const handleCopy = async () => {
     const canvas = canvasRef.current;
@@ -485,7 +654,7 @@ function PdfSource({
             variant="ghost"
             size="sm"
             iconOnly
-            onClick={() => setScale((value) => clampScale(value - SCALE_STEP))}
+            onClick={() => zoomBy(-SCALE_STEP)}
             aria-label={t('workspace.zoomOut')}
             title={t('workspace.zoomOut')}
           >
@@ -496,7 +665,7 @@ function PdfSource({
             variant="ghost"
             size="sm"
             iconOnly
-            onClick={() => setScale((value) => clampScale(value + SCALE_STEP))}
+            onClick={() => zoomBy(SCALE_STEP)}
             aria-label={t('workspace.zoomIn')}
             title={t('workspace.zoomIn')}
           >
@@ -506,9 +675,13 @@ function PdfSource({
             variant="ghost"
             size="sm"
             iconOnly
-            onClick={() => void fitWidth()}
-            aria-label={t('workspace.fitWidth')}
-            title={t('workspace.fitWidth')}
+            onClick={() => {
+              wheelAnchorRef.current = null;
+              setFitMode(true);
+            }}
+            aria-label={t('workspace.fitToView')}
+            title={t('workspace.fitToView')}
+            aria-pressed={fitMode}
           >
             <Maximize size={16} aria-hidden="true" />
           </Button>
@@ -526,6 +699,18 @@ function PdfSource({
             aria-pressed={mode === 'text'}
           >
             <MousePointer2 size={16} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            className={mode === 'pan' ? styles.active : undefined}
+            onClick={() => setMode((current) => (current === 'pan' ? 'text' : 'pan'))}
+            aria-label={t('common.handTool')}
+            title={t('common.handToolHint')}
+            aria-pressed={mode === 'pan'}
+          >
+            <Hand size={17} aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
@@ -639,13 +824,22 @@ function PdfSource({
         </p>
       ) : null}
 
-      <div ref={scrollRef} className={styles.scroll}>
+      <div
+        ref={scrollRef}
+        className={clsx(
+          styles.scroll,
+          mode === 'pan' && styles.panSurface,
+          mode === 'pan' && gestures.panning && styles.panSurfaceActive,
+        )}
+        {...gestures.surfaceProps}
+      >
         {error ? (
           <p className={styles.errorText} role="alert">
             {t('workspace.sourceError')}
           </p>
         ) : (
           <div
+            ref={pdfStageRef}
             className={styles.pdfStage}
             style={{
               width: pageSize.width || undefined,
@@ -654,7 +848,7 @@ function PdfSource({
           >
             <canvas ref={canvasRef} className={styles.canvas} aria-label={t('workspace.source')} />
             <div
-              className={clsx(styles.textLayer, mode === 'region' && styles.textLayerInactive)}
+              className={clsx(styles.textLayer, mode !== 'text' && styles.textLayerInactive)}
               style={{ width: pageSize.width, height: pageSize.height }}
             >
               {spans.map((span, index) => (
@@ -763,21 +957,52 @@ function ImageSource({
   const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(zoom);
+  const [fitMode, setFitMode] = useState(true);
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [mode, setMode] = useState<'view' | 'region'>('view');
   const [panEnabled, setPanEnabled] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const imageStageRef = useRef<HTMLDivElement>(null);
+  const wheelAnchorRef = useRef<ZoomAnchor | null>(null);
   const selection = useRegionSelection(mode === 'region' && !panEnabled);
+
+  // Fit the whole image inside the viewer, never upscaling beyond 100%.
+  const fitScale = naturalSize
+    ? calculateFitScale(naturalSize.width, naturalSize.height, viewport.width, viewport.height)
+    : 1;
+  const minImageScale = Math.min(MIN_SCALE, fitScale);
+  const clampImageScale = (value: number) => Math.min(MAX_SCALE, Math.max(minImageScale, value));
+  const setZoomValue = useCallback(
+    (value: number, anchor?: ZoomAnchor) => {
+      const next = Math.min(MAX_SCALE, Math.max(minImageScale, value));
+      if (next === zoomRef.current) {
+        wheelAnchorRef.current = null;
+        return;
+      }
+      wheelAnchorRef.current = anchor ?? null;
+      zoomRef.current = next;
+      setZoom(next);
+    },
+    [minImageScale],
+  );
+
   const gestures = useImageGestures({
     pan: panEnabled,
     label: t('common.handTool'),
     pinch: {
       zoom,
-      min: MIN_SCALE,
+      min: minImageScale,
       max: MAX_SCALE,
-      onChange: (next) => setZoom(Math.round(next * 100) / 100),
+      onChange: (next) => {
+        setFitMode(false);
+        setZoomValue(Math.round(clampImageScale(next) * 100) / 100);
+      },
     },
   });
+  const containerRef = gestures.containerRef;
 
   const togglePan = () => {
     const next = !panEnabled;
@@ -791,8 +1016,95 @@ function ImageSource({
   useEffect(() => {
     const objectUrl = URL.createObjectURL(asset.blob);
     setUrl(objectUrl);
+    setNaturalSize(null);
+    setFitMode(true);
+    wheelAnchorRef.current = null;
+    zoomRef.current = 1;
+    setZoom(1);
     return () => URL.revokeObjectURL(objectUrl);
   }, [asset]);
+
+  // The viewer must re-fit when the panel, window, or workspace layout changes.
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) {
+      return;
+    }
+    const measure = () => {
+      const { width, height } = measureContentSize(element);
+      setViewport((current) =>
+        current.width === width && current.height === height ? current : { width, height },
+      );
+    };
+
+    measure();
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver === 'function') {
+      observer = new ResizeObserver(measure);
+      observer.observe(element);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [containerRef]);
+
+  useEffect(() => {
+    if (fitMode) {
+      setZoomValue(fitScale);
+    }
+  }, [fitMode, fitScale, setZoomValue]);
+
+  const fitToView = () => {
+    setFitMode(true);
+    setZoomValue(fitScale);
+  };
+
+  const actualSize = () => {
+    setFitMode(false);
+    setZoomValue(1);
+  };
+
+  const zoomBy = (delta: number) => {
+    setFitMode(false);
+    setZoomValue(zoomRef.current + delta);
+  };
+
+  useEffect(() => {
+    const anchor = wheelAnchorRef.current;
+    if (!anchor) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const container = containerRef.current;
+      const content = imageStageRef.current;
+      if (container && content) {
+        restoreZoomAnchor(container, content, anchor);
+      }
+      wheelAnchorRef.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [zoom, containerRef]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey || event.deltaY === 0) {
+        return;
+      }
+      event.preventDefault();
+      const content = imageStageRef.current;
+      const anchor = content ? captureZoomAnchor(content, event) : undefined;
+      setFitMode(false);
+      setZoomValue(zoomRef.current * wheelZoomFactor(event, container.clientHeight), anchor);
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [containerRef, setZoomValue]);
 
   useEffect(() => {
     if (!status) {
@@ -830,18 +1142,27 @@ function ImageSource({
             variant="ghost"
             size="sm"
             iconOnly
-            onClick={() => setZoom((value) => clampScale(value - 0.25))}
+            onClick={() => zoomBy(-0.25)}
             aria-label={t('workspace.zoomOut')}
             title={t('workspace.zoomOut')}
           >
             <ZoomOut size={17} aria-hidden="true" />
           </Button>
-          <span className={styles.percent}>{Math.round(zoom * 100)}%</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.zoomReset}
+            onClick={actualSize}
+            aria-label={t('workspace.actualSize')}
+            title={t('workspace.actualSize')}
+          >
+            <span className={styles.percent}>{Math.round(zoom * 100)}%</span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             iconOnly
-            onClick={() => setZoom((value) => clampScale(value + 0.25))}
+            onClick={() => zoomBy(0.25)}
             aria-label={t('workspace.zoomIn')}
             title={t('workspace.zoomIn')}
           >
@@ -851,9 +1172,10 @@ function ImageSource({
             variant="ghost"
             size="sm"
             iconOnly
-            onClick={() => setZoom(1)}
-            aria-label={t('workspace.fitWidth')}
-            title={t('workspace.fitWidth')}
+            onClick={fitToView}
+            aria-label={t('workspace.fitToView')}
+            title={t('workspace.fitToView')}
+            aria-pressed={fitMode}
           >
             <Maximize size={16} aria-hidden="true" />
           </Button>
@@ -971,13 +1293,30 @@ function ImageSource({
         {...gestures.surfaceProps}
       >
         {url ? (
-          <div className={styles.imageStage} style={{ width: `${zoom * 100}%` }}>
+          <div ref={imageStageRef} className={styles.imageStage}>
             <img
               ref={imageRef}
               src={url}
               alt={asset.fileName}
               className={styles.image}
               draggable={false}
+              style={
+                naturalSize
+                  ? {
+                      width: `${naturalSize.width * zoom}px`,
+                      height: `${naturalSize.height * zoom}px`,
+                    }
+                  : { maxWidth: '100%', height: 'auto' }
+              }
+              onLoad={(event) => {
+                const image = event.currentTarget;
+                if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                  setNaturalSize({
+                    width: image.naturalWidth,
+                    height: image.naturalHeight,
+                  });
+                }
+              }}
             />
             <div
               className={clsx(styles.regionLayer, mode !== 'region' && styles.regionLayerInactive)}

@@ -166,7 +166,7 @@
 .scroll {
   flex: 1;
   min-height: 0;
-  padding: var(--space-5);
+  padding: var(--space-3);
   overflow: auto;
   background-color: var(--color-bg-inset);
 }
@@ -301,15 +301,20 @@
 
 .imageStage {
   position: relative;
+  width: fit-content;
   margin: 0 auto;
   line-height: 0;
 }
 
 .image {
   display: block;
-  width: 100%;
-  height: auto;
+  max-width: none;
   box-shadow: var(--shadow-md);
+}
+
+.zoomReset {
+  min-width: 2.75rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .textPreview {
