@@ -1,0 +1,116 @@
+.panel {
+  position: sticky;
+  top: var(--space-2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: min(30rem, 100%);
+  padding: var(--space-2);
+  margin-left: auto;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  align-items: center;
+  min-width: 0;
+}
+
+.leadingIcon {
+  flex: none;
+  color: var(--color-text-tertiary);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 5rem;
+  height: 2rem;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-inset);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.count {
+  flex: none;
+  min-width: 4.5rem;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.active {
+  color: var(--color-text-accent) !important;
+  background-color: var(--color-bg-accent-soft) !important;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  padding: 0 var(--space-1);
+}
+
+.option {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.option input {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.option:has(input:disabled) {
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+@media (max-width: 40rem) {
+  .panel {
+    width: 100%;
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .count {
+    min-width: 0;
+    margin-left: auto;
+  }
+
+  .input {
+    flex-basis: 8rem;
+  }
+}

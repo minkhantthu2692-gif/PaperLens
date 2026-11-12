@@ -4,8 +4,16 @@ import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
 import { PARAGRAPH_ALIGNMENTS } from '@/domain/paragraphAlignment';
+import {
+  createSearchHighlightExtension,
+  type SearchHighlightClasses,
+} from '@/features/editor/searchHighlight';
 
-export function createEditorExtensions(placeholder: string) {
+interface EditorExtensionOptions {
+  searchHighlight?: SearchHighlightClasses;
+}
+
+export function createEditorExtensions(placeholder: string, options: EditorExtensionOptions = {}) {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
@@ -24,5 +32,6 @@ export function createEditorExtensions(placeholder: string) {
       defaultAlignment: 'left',
     }),
     Placeholder.configure({ placeholder }),
+    ...(options.searchHighlight ? [createSearchHighlightExtension(options.searchHighlight)] : []),
   ];
 }

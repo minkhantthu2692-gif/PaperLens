@@ -257,6 +257,23 @@
   content: attr(data-placeholder);
 }
 
+.searchMatch {
+  background-color: var(--color-bg-selection);
+  border-radius: 2px;
+  box-shadow: inset 0 -1px 0 var(--color-border-accent);
+}
+
+.searchMatchActive {
+  color: var(--color-text-on-accent);
+  background-color: var(--color-accent);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .searchMatchActive {
+  color: var(--color-bg-app);
+  background-color: var(--color-accent-active);
+}
+
 .aiBubble {
   position: fixed;
   z-index: var(--z-overlay);

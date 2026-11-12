@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import {
   AlignJustify,
@@ -13,6 +20,7 @@ import {
   PenLine,
   Quote,
   Redo2,
+  Search,
   Sparkles,
   Strikethrough,
   Underline as UnderlineIcon,
@@ -27,6 +35,7 @@ import { getParagraphAlignment, type ParagraphAlignment } from '@/domain/paragra
 import { countWords, normalizeLinkHref } from '@/lib/format';
 import { saveEditorContent } from '@/services/storage/documents';
 import { createEditorExtensions } from '@/features/editor/extensions';
+import { FindReplaceBar } from '@/features/editor/FindReplaceBar';
 import styles from './EditorPanel.module.css';
 
 export type SaveState = 'saved' | 'saving' | 'error';
@@ -80,13 +89,25 @@ export function EditorPanel({
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchReplace, setSearchReplace] = useState(false);
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
+  const sectionRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const pendingRef = useRef<EditorSnapshot | null>(null);
   const unsavedRef = useRef(false);
   const onSaveStateRef = useRef(onSaveStateChange);
   onSaveStateRef.current = onSaveStateChange;
 
-  const extensions = useRef(createEditorExtensions(t('editor.placeholder'))).current;
+  const extensions = useRef(
+    createEditorExtensions(t('editor.placeholder'), {
+      searchHighlight: {
+        match: styles.searchMatch ?? '',
+        active: styles.searchMatchActive ?? '',
+      },
+    }),
+  ).current;
 
   const flush = useCallback(async () => {
     const pending = pendingRef.current;
@@ -244,10 +265,40 @@ export function EditorPanel({
     setLinkDialogOpen(false);
   };
 
+  const openSearch = (showReplaceControls: boolean) => {
+    setSearchOpen(true);
+    if (showReplaceControls) {
+      setSearchReplace(true);
+    }
+    setSearchFocusSignal((value) => value + 1);
+  };
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    const key = event.key.toLowerCase();
+    const withModifier = event.ctrlKey || event.metaKey;
+    const modalOpen = sectionRef.current?.querySelector('dialog[open]');
+
+    if (withModifier && !event.altKey && (key === 'f' || key === 'h')) {
+      if (modalOpen) {
+        return;
+      }
+      event.preventDefault();
+      openSearch(key === 'h');
+      return;
+    }
+
+    if (event.key === 'Escape' && searchOpen && !modalOpen) {
+      event.preventDefault();
+      setSearchOpen(false);
+    }
+  };
+
   return (
     <section
+      ref={sectionRef}
       className={`${styles.shell} ${fullWorkspace ? styles.fullWorkspace : ''}`}
       aria-label={t('workspace.editor')}
+      onKeyDown={handleKeyDown}
     >
       <header className={styles.panelHeader}>
         <div className={styles.headerTitle}>
@@ -472,9 +523,34 @@ export function EditorPanel({
         >
           <AlignJustify size={16} aria-hidden="true" />
         </Button>
+
+        <span className={styles.divider} aria-hidden="true" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          className={searchOpen ? styles.active : undefined}
+          onClick={() => openSearch(false)}
+          aria-label={t('editor.find')}
+          title={t('editor.find')}
+          aria-pressed={searchOpen}
+        >
+          <Search size={16} aria-hidden="true" />
+        </Button>
       </div>
 
-      <div className={styles.scroll}>
+      <div className={styles.scroll} ref={scrollRef}>
+        {searchOpen ? (
+          <FindReplaceBar
+            editor={editor}
+            scrollRef={scrollRef}
+            showReplace={searchReplace}
+            onToggleReplace={() => setSearchReplace((value) => !value)}
+            onClose={() => setSearchOpen(false)}
+            focusSignal={searchFocusSignal}
+          />
+        ) : null}
         <div className={styles.paper}>
           <EditorContent editor={editor} />
         </div>
